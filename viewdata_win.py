@@ -27,28 +27,30 @@ import fitlibrary
 
 # Check the OS and give correct path dependency
 if os.name == "posix":
-    #Change this to the mount point for atomcool/lab. When using Linuax.
-    atomcool_lab_path = os.environ['HOME']+'/atomcool_lab/'
+    #Change this to the mount point for atomcool/lab. When using Linux.
+    atomcool_lab_path = '/home/ernie/atomcool_lab/'
 else:
     #Change this to the map drive for atomcool/lab. When using Windows.
     atomcool_lab_path = 'L:/'
 
 def LastShot():
-    shotfile = open('%sdata/app3/comms/RunNumber'%atomcool_lab_path,'r')
+    SHOT = ConfigObj('plotconf.ini')['DIRECTORIES']['shotfile']
+    shotfile = open(SHOT,'r')
     shotnum = int( shotfile.readline() )
     shotfile.close()
     return shotnum
 
 def LastAnalyzed():
-    file= open('%sdata/app3/comms/AnaNumber'%atomcool_lab_path,'r')
+    LASTNUM = ConfigObj('plotconf.ini')['DIRECTORIES']['lastnum']
+    file = open(LASTNUM,'r')
     lastnum = int( file.readline() )
     file.close()
     return lastnum
-    
 
 def DataDir():
-    savedirfile = open('%sdata/app3/comms/SaveDir'%atomcool_lab_path,'r')
-    savedir = "L:" +  savedirfile.readline().split(':')[1].replace('\\','/') 
+    SAVEDIR = ConfigObj('plotconf.ini')['DIRECTORIES']['savedirfile']
+    savedirfile = open(SAVEDIR,'r')
+    savedir = savedirfile.readline()
     savedirfile.close()
     return savedir
 
@@ -190,6 +192,7 @@ class Fits(HasTraits):
                 display("Fitting to a Exp")
                 self.a, self.ae=fitlibrary.fit_function(self.a0[:,0],fitdata,fitlibrary.exp_function)
                 return fitlibrary.plot_function(self.a[:,0] , fitdata[:,0],fitlibrary.exp_function)
+
                 
 class DataSet(HasTraits):
     """ Object that holds the information defining a data set"""
@@ -208,7 +211,7 @@ class DataSet(HasTraits):
            self.Y = pickle.load( fpck )
            self.c = pickle.load( fpck )
            self.datadir = pickle.load( fpck )
-           self.range = pickle.load( fpck )           
+           self.range = pickle.load( fpck )
            fit_a = [self.fit1]
            for f in fit_a:
                f._pck_(action,fpck)
@@ -216,13 +219,14 @@ class DataSet(HasTraits):
     def _setfitexprs_(self):
         self.fit1._setfitexprs_()
 
+
     plotme = Bool(False, label="plot me ?")
     X2 = Bool(False, label="X2?")
     Y2 = Bool(False, label="Y2?")
     
     X = Str('TRAPFREQ:modfreq', label="X")
     Y = Str('CPP:ax0w', label="Y")
-    
+   
     c = Str('', label="Color") 
 
     datadir = Str( DataDir(), label="DataDir", desc="directory where reports are located")
@@ -230,18 +234,16 @@ class DataSet(HasTraits):
 
     fit1 = Instance(Fits, ())
 
-
     raw_data = String()
     saveraw = Button('Save Raw Data')
-    loadscan = Button('Load Scan')
+
+
     fitw=550
    
     view = View( Group(
                 Group(Item('plotme'),
                       Item('X2'),
                       Item('Y2'),
-                      spring,
-                      Item('loadscan', show_label=False ),
                       orientation='horizontal'
                       ),
     
@@ -259,7 +261,7 @@ class DataSet(HasTraits):
                      ) ,label='Set'   ),
                             
                     Group(     Item (
-                                    'raw_data',show_label=False, springy=True, style='custom' 
+                                    'raw_data',show_label=False, springy=True, style='custom'
                                    ),
                                Item('saveraw',show_label=False),label='Raw Data')
                                    ,dock='tab', height=600
@@ -272,7 +274,7 @@ class DataSet(HasTraits):
        display(errmsg)
        self.raw_data = rawdat
        return data
-    
+
     def _saveraw_changed(self):
         """ Save raw data to choosen location"""
       
@@ -283,14 +285,7 @@ class DataSet(HasTraits):
             file_raw.write('#range:'+self.range+'\n')
             file_raw.write(self.raw_data)
             file_raw.close()
-    def _loadscan_changed ( self ):
-        """ Handles the user clicking the 'Loadscan...' button. Load the sweep config file
-        """
-        infofile = open('%sdata/app3/comms/ScanInfo'%atomcool_lab_path, 'r')
-        self.datadir =  infofile.readline()
-        self.range = infofile.readline()
-        self.X = infofile.readline()
-        self.Y = infofile.readline()
+
       
 def process(dataset_array, image_clear, figure):
     """ Function called to do the processing """
@@ -308,6 +303,7 @@ def process(dataset_array, image_clear, figure):
             
             datX, datY = (data[:,0], data[:,1])
             fitX, fitY =  set.fit1.fit(data)  if set.fit1.dofit else (None,None)
+            
             
             if data !=None:
                 
@@ -421,7 +417,6 @@ class ControlPanel(HasTraits):
     replot = Button("replot")
     savepck = Button("save pck")
     loadpck = Button("load pck")
-    loadscan = Button("load scan")
     autoplot = Bool(False, desc="autoplotting: Check box to autplot", label="auto plotting")
 
     dat1 = Instance(DataSet, ())
@@ -442,7 +437,7 @@ class ControlPanel(HasTraits):
 
     
 
-    view = View(  
+    view = View(
                   HGroup(Item('replot', show_label=False),Item('clear', show_label=False ),Item('autoplot', show_label=True ),spring,Item('savepck', show_label=False ),Item('loadpck', show_label=False )),           
                   Item( '_' ),  
                   VSplit(                       
@@ -455,10 +450,11 @@ class ControlPanel(HasTraits):
                                      Item('dat5', style='custom', show_label=False),                                     
                                      layout='tabbed', springy=True),
                         ),
-                             
-                
+
+
                   )
         
+
 
     def _clear_fired(self):
         """Callback of the "clear" button.  This stops the fitting thread if necessary
@@ -522,6 +518,7 @@ class ControlPanel(HasTraits):
             self._pck_('load',file_pck)
             file_pck.close()
                        
+    
     def add_line(self, string):
         """ Adds a line to the textbox display.
         """
@@ -615,7 +612,6 @@ class MainWindow(HasTraits):
             fpck=open(f,"w+b")
         self.panel._pck_(action,fpck)
         fpck.close()
-
 
     
     view = View(HSplit(Item('figure', editor=MPLFigureEditor(), dock='vertical'),
