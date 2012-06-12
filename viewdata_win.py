@@ -42,7 +42,6 @@ def LastShot():
 def LastAnalyzed():
     LASTNUM = ConfigObj('plotconf.ini')['DIRECTORIES']['lastnum']
     file = open(LASTNUM,'r')
-    # file= open('%sdata/app3/comms/AnaNumber'%atomcool_lab_path,'r')
     lastnum = int( file.readline() )
     file.close()
     return lastnum
@@ -83,7 +82,7 @@ class Fits(HasTraits):
             pickle.dump( self.a0, fpck )
             pickle.dump( self.a, fpck )
 
-			
+
         if action == 'load':
             self.dofit =  pickle.load( fpck )
             self.func =  pickle.load( fpck )
@@ -94,7 +93,7 @@ class Fits(HasTraits):
             self.a0 = pickle.load( fpck )
             self.a = pickle.load( fpck )
 
-			
+
     dofit = Bool(False, desc="do fit?: Check box to enable this fit", label="fit?")
     fitexpr = Str(label='f(x)=')
     func = Enum('Gaussian','Sine','ExpSine','Temperature')
@@ -107,7 +106,7 @@ class Fits(HasTraits):
     a0 = Array(numpy.float,(5,1),editor=ArrayEditor(width=-100))
     a = Array(numpy.float,(5,1),editor=ArrayEditor(width=-100))
     ae = Array(numpy.float,(5,1),editor=ArrayEditor(width=-100))
-	
+
     traits_view = View(
                     Group(Group(
                        Item('dofit'),
@@ -273,6 +272,26 @@ class DataSet(HasTraits):
        display(errmsg)
        self.raw_data = rawdat
        return data
+    
+    def _saveraw_changed(self):
+        """ Save raw data to choosen location"""
+      
+        file_name = save_file()
+        if file_name != '':
+            file_raw=open(file_name,"w+b")
+            file_raw.write('#dir:'+self.datadir+'\n')
+            file_raw.write('#range:'+self.range+'\n')
+            file_raw.write(self.raw_data)
+            file_raw.close()
+    def _loadscan_changed ( self ):
+        """ Handles the user clicking the 'Loadscan...' button. Load the sweep config file
+        """
+        INFO = ConfigObj('plotconf.ini')['DIRECTORIES']['infofile']
+        infofileinfo = open(INFO,'r')
+        self.datadir =  infofile.readline()
+        self.range = infofile.readline()
+        self.X = infofile.readline()
+        self.Y = infofile.readline()
       
 def process(dataset_array, image_clear, figure):
     """ Function called to do the processing """
@@ -374,7 +393,7 @@ class FittingThread(Thread):
                     
             i = i+1
 
-	
+
 class ControlPanel(HasTraits):
     """ This object is the core of the traitsUI interface. Its view is
     the right panel of the application, and it hosts the method for
@@ -598,8 +617,3 @@ class MainWindow(HasTraits):
 
 if __name__ == '__main__':
     MainWindow().configure_traits()
-
-
-	
-	
-	
