@@ -34,21 +34,23 @@ else:
     atomcool_lab_path = 'L:/'
 
 def LastShot():
-    shotfile = open('%sdata/app3/comms/RunNumber'%atomcool_lab_path,'r')
+    SHOT = ConfigObj('plotconf.ini')['DIRECTORIES']['shotfile']
+    shotfile = open(SHOT,'r')
     shotnum = int( shotfile.readline() )
     shotfile.close()
     return shotnum
 
 def LastAnalyzed():
-    file= open('%sdata/app3/comms/AnaNumber'%atomcool_lab_path,'r')
+    LASTNUM = ConfigObj('plotconf.ini')['DIRECTORIES']['lastnum']
+    file = open(LASTNUM,'r')
     lastnum = int( file.readline() )
     file.close()
     return lastnum
-    
 
 def DataDir():
-    savedirfile = open('%sdata/app3/comms/SaveDir'%atomcool_lab_path,'r')
-    savedir = "L:" +  savedirfile.readline().split(':')[1].replace('\\','/') 
+    SAVEDIR = ConfigObj('plotconf.ini')['DIRECTORIES']['savedirfile']
+    savedirfile = open(SAVEDIR,'r')
+    savedir = savedirfile.readline()
     savedirfile.close()
     return savedir
 
@@ -81,7 +83,7 @@ class Fits(HasTraits):
             pickle.dump( self.a0, fpck )
             pickle.dump( self.a, fpck )
 
-			
+
         if action == 'load':
             self.dofit =  pickle.load( fpck )
             self.func =  pickle.load( fpck )
@@ -92,7 +94,7 @@ class Fits(HasTraits):
             self.a0 = pickle.load( fpck )
             self.a = pickle.load( fpck )
 
-			
+
     dofit = Bool(False, desc="do fit?: Check box to enable this fit", label="fit?")
     fitexpr = Str(label='f(x)=')
     func = Enum('Gaussian','Sine','ExpSine','Temperature','Exp')
@@ -105,7 +107,7 @@ class Fits(HasTraits):
     a0 = Array(numpy.float,(5,1),editor=ArrayEditor(width=-100))
     a = Array(numpy.float,(5,1),editor=ArrayEditor(width=-100))
     ae = Array(numpy.float,(5,1),editor=ArrayEditor(width=-100))
-	
+
     traits_view = View(
                     Group(Group(
                        Item('dofit'),
@@ -286,7 +288,8 @@ class DataSet(HasTraits):
     def _loadscan_changed ( self ):
         """ Handles the user clicking the 'Loadscan...' button. Load the sweep config file
         """
-        infofile = open('%sdata/app3/comms/ScanInfo'%atomcool_lab_path, 'r')
+        INFO = ConfigObj('plotconf.ini')['DIRECTORIES']['infofile']
+        infofileinfo = open(INFO,'r')
         self.datadir =  infofile.readline()
         self.range = infofile.readline()
         self.X = infofile.readline()
@@ -392,7 +395,7 @@ class FittingThread(Thread):
                     
             i = i+1
 
-	
+
 class ControlPanel(HasTraits):
     """ This object is the core of the traitsUI interface. Its view is
     the right panel of the application, and it hosts the method for
@@ -630,8 +633,3 @@ class MainWindow(HasTraits):
 
 if __name__ == '__main__':
     MainWindow().configure_traits()
-
-
-	
-	
-	
