@@ -27,7 +27,7 @@ import fitlibrary
 # Check the OS and give correct path dependency
 if os.name == "posix":
     #Change this to the mount point for atomcool/lab. When using Linux.
-    atomcool_lab_path = '/home/ernie/atomcool_lab/'
+    atomcool_lab_path = os.environ['HOME']+'/atomcool_lab/'
 else:
     #Change this to the map drive for atomcool/lab. When using Windows.
     atomcool_lab_path = 'L:/'
