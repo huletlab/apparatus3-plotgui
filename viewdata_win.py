@@ -12,7 +12,6 @@ from matplotlib.figure import Figure
 from scipy import * 
 from numpy import loadtxt, linspace, sin
 import wx
-import os
 from random import choice
 from configobj import ConfigObj
 
@@ -35,16 +34,19 @@ colors = ['#0D8800','#1729E0','#00A779','#D8005F','green','red','magenta','black
 #
 #-------------------------------------------------------------------------------#
 
-# The correct paths are stored in the plotconf.INI file
+import plotconf 
+plotconfini =  plotconf.initplotgui()
+
+# The correct paths are stored in the plotconfini.INI file
 def LastAnalyzed():
-    LASTNUM = ConfigObj('plotconf.INI')['DIRECTORIES']['lastnum']
+    LASTNUM = ConfigObj(plotconfini)['DIRECTORIES']['lastnum']
     file = open(LASTNUM,'r')
     lastnum = int( file.readline() )
     file.close()
     return lastnum
 
 def DataDir():
-    SAVEDIR = ConfigObj('plotconf.INI')['DIRECTORIES']['savedirfile']
+    SAVEDIR = ConfigObj(plotconfini)['DIRECTORIES']['savedirfile']
     savedirfile = open(SAVEDIR,'r')
     savedir = savedirfile.readline()
     savedirfile.close()
@@ -151,7 +153,7 @@ class DataSet(HasTraits):
     def _loadscan_changed ( self ):
         """ Handles the user clicking the 'Loadscan...' button. Load the sweep config file
         """
-        INFO = ConfigObj('plotconf.ini')['DIRECTORIES']['infofile']
+        INFO = ConfigObj(plotconfini)['DIRECTORIES']['infofile']
         infofile = open(INFO,'r')
         self.datadir =  infofile.readline()
         self.range = infofile.readline()
