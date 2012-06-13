@@ -4,12 +4,31 @@ import getopt, sys, configobj, numpy
 from StringIO import StringIO
 
 sys.path.append('L:/software/apparatus3/bin')
-import parse_rangeWIN
 
+def parse_range(rangestr):
+    shots=[] 
+
+    l = rangestr.split(',')
+    for token in l:
+        if token.find(':') > -1:
+            sh0 = int(token.split(':')[0])
+            shf = int(token.split(':')[1])
+            if shf < sh0:
+                sys.stderr.write( "\n----------> RANGE ERROR: end of range is smaller than start of range\n\n")
+                return
+            for num in range(sh0,shf+1):
+                numstr = "%04d" % num
+                shots.append(numstr)
+        elif token.find('-') == 0:
+            l2 = token.split('-')[1:]
+            for shot in l2:
+                if shot in shots:
+                    shots.remove(shot)
+    return shots
 
 def qrange(dir,range,keys):
     fakefile=""
-    shots=parse_rangeWIN.main(range)
+    shots=parse_range(range)
     #print shots
     errmsg=''
     rawdat='#%s%s\n' % ('SEC:shot\t',keys.replace(' ','\t'))
@@ -53,4 +72,5 @@ def qrange(dir,range,keys):
     print errmsg
     return a, errmsg, rawdat
 
-    
+if __name__ == "__main__":
+    qrange('L:/data/app3/2011/1107/110725/','8888:8890','SEQ:shot CPP:nfit')
