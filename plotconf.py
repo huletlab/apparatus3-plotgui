@@ -16,7 +16,9 @@ from enthought.traits.ui.api import View, Item
 from enthought.traits.ui.menu import OKButton, CancelButton
 
 class PlotguiConf(HasTraits):
-  plotconf_values=List(glob.glob( os.getcwd() + "/plotconf*INI"))
+  path =  os.path.realpath(__file__)
+  path =  path.rsplit('/',1)[0]
+  plotconf_values=List(glob.glob( path + "/plotconf*INI"))
 
   
   plotconf = Enum(values='plotconf_values')
@@ -28,7 +30,7 @@ def initplotgui():
   conf = PlotguiConf()
   out = conf.configure_traits()
   if out == True: 
-     return conf.plotconf
+     return conf.plotconf, conf.path
   else:
      print "program will be stopped."
      exit(1)

@@ -35,19 +35,23 @@ colors = ['#0D8800','#1729E0','#00A779','#D8005F','green','red','magenta','black
 #-------------------------------------------------------------------------------#
 
 import plotconf 
-plotconfini =  plotconf.initplotgui()
+plotconfini, path =  plotconf.initplotgui()
 
 # The correct paths are stored in the plotconfini.INI file
 def LastAnalyzed():
     LASTNUM = ConfigObj(plotconfini)['DIRECTORIES']['lastnum']
-    file = open(LASTNUM,'r')
+    if LASTNUM[0] != '/':
+      LASTNUM = path + '/' + LASTNUM
+    file = open( LASTNUM,'r')
     lastnum = int( file.readline() )
     file.close()
     return lastnum
 
 def DataDir():
     SAVEDIR = ConfigObj(plotconfini)['DIRECTORIES']['savedirfile']
-    savedirfile = open(SAVEDIR,'r')
+    if SAVEDIR[0] != '/':
+      SAVEDIR = path + '/' + SAVEDIR
+    savedirfile = open( SAVEDIR,'r')
     savedir = savedirfile.readline()
     savedirfile.close()
     return savedir
