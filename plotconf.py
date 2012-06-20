@@ -15,10 +15,14 @@ from enthought.traits.api import HasTraits, Str, List, Enum
 from enthought.traits.ui.api import View, Item
 from enthought.traits.ui.menu import OKButton, CancelButton
 
+import os
+
 class PlotguiConf(HasTraits):
-  path =  os.path.realpath(__file__)
-  path =  path.rsplit('/',1)[0]
+  path = os.path.dirname(os.path.realpath(__file__))
   plotconf_values=List(glob.glob( path + "/plotconf*INI"))
+  
+  print path 
+  print plotconf_values
 
   
   plotconf = Enum(values='plotconf_values')

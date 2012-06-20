@@ -49,8 +49,9 @@ def LastAnalyzed():
 
 def DataDir():
     SAVEDIR = ConfigObj(plotconfini)['DIRECTORIES']['savedirfile']
-    if SAVEDIR[0] != '/':
-      SAVEDIR = path + '/' + SAVEDIR
+    #if SAVEDIR[0] != '/':
+    #SAVEDIR = path + '/' + SAVEDIR
+    #SAVEDIR = path + '/' + SAVEDIR
     savedirfile = open( SAVEDIR,'r')
     savedir = savedirfile.readline()
     savedirfile.close()
