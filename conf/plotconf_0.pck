@@ -4,7 +4,7 @@ p0
 p0
 .Vgreen
 p0
-.Vdata/
+.S'/home/pd3/apparatus3-plotgui/data/'
 p0
 .V8421:8434
 p0
@@ -84,7 +84,7 @@ I-1
 I0
 tp12
 bI00
-S'\x04Fu\n\x8fh\x17A\xa3HPD2Ms@.8k\xfd\xedG(@@A\xb4\x86\xad1\xa4\xc0\x00\x00\x00\x00\x00\x00\x00\x00'
+S'FkQ\t\x8fh\x17A\x86\x13ND2Ms@\x90\xa6n\xfb\xedG(@\xaa\xc9L\xe1\xac1\xa4\xc0\x00\x00\x00\x00\x00\x00\x00\x00'
 p13
 tp14
 b.S'TRAPFREQ:modfreq'
@@ -93,7 +93,7 @@ p0
 p0
 .S'#1729E0'
 p0
-.S'data/'
+.S'/home/pd3/apparatus3-plotgui/data/'
 p0
 .S''
 p0
@@ -182,7 +182,7 @@ p0
 p0
 .S'#00A779'
 p0
-.S'data/'
+.S'/home/pd3/apparatus3-plotgui/data/'
 p0
 .S''
 p0
@@ -271,7 +271,7 @@ p0
 p0
 .S'#D8005F'
 p0
-.S'data/'
+.S'/home/pd3/apparatus3-plotgui/data/'
 p0
 .S''
 p0
@@ -360,7 +360,7 @@ p0
 p0
 .S'green'
 p0
-.S'data/'
+.S'/home/pd3/apparatus3-plotgui/data/'
 p0
 .S''
 p0

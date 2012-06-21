@@ -34,28 +34,36 @@ colors = ['#0D8800','#1729E0','#00A779','#D8005F','green','red','magenta','black
 #
 #-------------------------------------------------------------------------------#
 
-import plotconf 
-plotconfini, path =  plotconf.initplotgui()
+import os
+import plotconf
+import datetime 
+plotconfini, plotgui_path, mainpck, load_pck, use_date =  plotconf.initplotgui()
+conf = ConfigObj(plotconfini)
+print "Using INI file %s" % plotconfini
+print "Plotgui base path is %s" % plotgui_path
+print "Main pck file path is %s" % mainpck
 
 # The correct paths are stored in the plotconfini.INI file
 def LastAnalyzed():
-    LASTNUM = ConfigObj(plotconfini)['DIRECTORIES']['lastnum']
-    if LASTNUM[0] != '/':
-      LASTNUM = path + '/' + LASTNUM
+    LASTNUM = conf['DIRECTORIES']['lastnum']
+    path_is_relative = LASTNUM[0] != '/' and not ':' in LASTNUM  #works for Win and Linux
+    if path_is_relative:
+      LASTNUM = plotgui_path + '/' + LASTNUM
     file = open( LASTNUM,'r')
     lastnum = int( file.readline() )
     file.close()
     return lastnum
 
 def DataDir():
-    SAVEDIR = ConfigObj(plotconfini)['DIRECTORIES']['savedirfile']
-    #if SAVEDIR[0] != '/':
-    #SAVEDIR = path + '/' + SAVEDIR
-    #SAVEDIR = path + '/' + SAVEDIR
-    savedirfile = open( SAVEDIR,'r')
-    savedir = savedirfile.readline()
-    savedirfile.close()
-    return savedir
+    DATADIR = conf['DIRECTORIES']['datadir']
+    path_is_relative = DATADIR[0] != '/' and not ':' in DATADIR  #Works for Win and Linux
+    if path_is_relative: 
+      DATADIR = os.path.join(plotgui_path, DATADIR)
+    if use_date:
+      today = datetime.date.today()
+      date_path = today.strftime('%Y/%y%m/%y%m%d')
+      DATADIR  = os.path.join( DATADIR, date_path )
+    return DATADIR
 
 #-------------------------------------------------------------------------------#
 #
@@ -158,7 +166,7 @@ class DataSet(HasTraits):
     def _loadscan_changed ( self ):
         """ Handles the user clicking the 'Loadscan...' button. Load the sweep config file
         """
-        INFO = ConfigObj(plotconfini)['DIRECTORIES']['infofile']
+        INFO = conf['DIRECTORIES']['infofile']
         infofile = open(INFO,'r')
         self.datadir =  infofile.readline()
         self.range = infofile.readline()
@@ -454,8 +462,9 @@ class MainWindowHandler(Handler):
     ## This handler is just graciously taking care of closing 
     ## the application when it is in the middle of doing a plot or a fit
     def init(self, info):
-        info.object._pck_(action='load')
-        info.object.panel._setfitexprs_()
+        if load_pck: 
+            info.object._pck_(action='load')
+            info.object.panel._setfitexprs_()
     
     def close(self, info, is_OK):
         if ( info.object.panel.process_thread
@@ -483,15 +492,15 @@ class MainWindow(HasTraits):
     def _panel_default(self):
         return ControlPanel(figure=self.figure)
         
-    def _pck_(self,action,f='viewdata_win.pck'):
+    def _pck_(self,action,f=mainpck):
         if action == 'load':
             try:
                 fpck=open(f,"rb")
-                print 'Loading panel from pck.'
+                print 'Loading panel from %s' % mainpck
             except:
                 return
         if action == 'save':
-            print 'Saving panel to pck.'
+            print 'Saving panel to %s' % mainpck
             fpck=open(f,"w+b")
         self.panel._pck_(action,fpck)
         fpck.close()
