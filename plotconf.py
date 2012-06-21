@@ -11,26 +11,36 @@ import glob
 #    atomcool_lab_path = 'L:/'
 
 
-from enthought.traits.api import HasTraits, Str, List, Enum
+from enthought.traits.api import HasTraits, Str, List, Enum, Bool
 from enthought.traits.ui.api import View, Item
 from enthought.traits.ui.menu import OKButton, CancelButton
 
 class PlotguiConf(HasTraits):
-  path =  os.path.realpath(__file__)
-  path =  path.rsplit('/',1)[0]
-  plotconf_values=List(glob.glob( path + "/plotconf*INI"))
+  confpath =  os.path.realpath(__file__)
+  confpath =  os.path.split(confpath)[0]
+  plotguipath = confpath
+  confpath =  confpath = os.path.join( confpath, "conf/" )
+  plotconf_values=List(glob.glob( confpath + "plotconf*INI"))
 
   
   plotconf = Enum(values='plotconf_values')
+  load_pck = Bool()
+  use_date = Bool() 
 
-  view = View(  Item(name='plotconf') , resizable=True, width=600, height=200, title='PLOTGUI :: Configuration',\
+  view = View(  Item(name='plotconf') , 
+                Item(name='load_pck'),
+                Item(name='use_date'), 
+                resizable=True, width=600, height=200, 
+                title='PLOTGUI :: Configuration',\
                 buttons = [OKButton, CancelButton])
 
 def initplotgui():
   conf = PlotguiConf()
   out = conf.configure_traits()
   if out == True: 
-     return conf.plotconf, conf.path
+     plotguipath =  os.path.split(conf.confpath)[0]
+     mainpck =   conf.plotconf.split('.')[0] + '.pck'
+     return conf.plotconf, conf.plotguipath, mainpck, conf.load_pck, conf.use_date
   else:
      print "program will be stopped."
      exit(1)
