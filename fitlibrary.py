@@ -7,6 +7,12 @@ class fits:
    def __init__(self, function):
      self.function = function
 
+#-------------------------------------------------------------------------------#
+#
+#  DIFFERENT TYPES OF FITS ARE DEFINED HERE
+#
+#-------------------------------------------------------------------------------#
+# Currently accepts fits of maximum 5 parameters
 gaus1d = fits( lambda x,p0,p1,p2,p3 : p0*numpy.exp(-((x-p1)/p2)**2)+p3 )
 gaus1d.fitexpr = 'a[0] * exp( - ( (x-a[1]) / a[2] )**2 )+a[3]'
 
@@ -29,6 +35,13 @@ fitdict['Sine'] = sine
 fitdict['ExpSine'] = expsine
 fitdict['Temperature'] = temperature
 
+
+
+#-------------------------------------------------------------------------------#
+#
+#  THE FITTING PROCEDURES ARE DEFINED BELOW
+#
+#-------------------------------------------------------------------------------#
 def fit_function(p,data,function):
     # Chekck the length of p
     pLen = len(inspect.getargspec(function)[0])-1
