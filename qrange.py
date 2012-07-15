@@ -56,9 +56,9 @@ def qrange(dir,range,keys):
                 line  = line  + val + '\t'
                 fval = float(val)
                 if fval > 1e5 or fval < 1e5:
-                    lstr = '%.3e\t\t' % fval
+                    lstr = '%.6e\t\t' % fval
                 else:
-                    lstr = '%.4f\t\t' % fval
+                    lstr = '%.6f\t\t' % fval
                 line_ = line_ + lstr
             except KeyError:
                 err = True
@@ -73,4 +73,4 @@ def qrange(dir,range,keys):
     return a, errmsg, rawdat
 
 if __name__ == "__main__":
-    qrange('L:/data/app3/2011/1107/110725/','8888:8890','SEQ:shot CPP:nfit')
+    print qrange('L:/data/app3/2012/1206/120625/','276:290','SEQ:shot CPP:nfit')
