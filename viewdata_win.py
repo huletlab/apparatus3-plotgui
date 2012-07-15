@@ -1,7 +1,7 @@
 from threading import Thread
 from time import sleep
 from enthought.traits.api import *
-from enthought.traits.ui.api import View, Item, Group, HGroup, VGroup, HSplit, VSplit,Handler, CheckListEditor, EnumEditor, ListStrEditor,ArrayEditor, spring
+from enthought.traits.ui.api import View, Item, Group, HGroup, VGroup, HSplit, VSplit,Handler, CheckListEditor, EnumEditor, ListStrEditor,ArrayEditor, spring, ListEditor
 from enthought.traits.ui.menu import NoButtons
 from enthought.traits.ui.file_dialog import save_file,open_file
 from enthought.chaco.api import Plot, ArrayPlotData
@@ -9,7 +9,7 @@ from enthought.enable.component_editor import ComponentEditor
 from enthought.chaco.chaco_plot_editor import ChacoPlotItem
 from mpl_figure_editor import MPLFigureEditor
 from matplotlib.figure import Figure
-from scipy import * 
+from scipy import stats 
 from numpy import loadtxt, linspace, sin
 import wx
 from random import choice
@@ -19,12 +19,12 @@ from qrange import qrange
 
 import numpy
 import matplotlib
+import copy
 import pickle
 from configobj import ConfigObj
 
 from fitlibrary import Fits
 
-global display
 global colors 
 colors = ['#0D8800','#1729E0','#00A779','#D8005F','green','red','magenta','black']
 
@@ -73,49 +73,30 @@ def DataDir():
 
 class DataSet(HasTraits):
     """ Object that holds the information defining a data set"""
-    def _pck_(self,action,fpck):
-       if action == 'save':
-           pickle.dump( self.X, fpck)
-           pickle.dump( self.Y, fpck )
-           pickle.dump( self.c, fpck )
-           pickle.dump( self.datadir, fpck )
-           pickle.dump( self.range, fpck )
-           fit_a = [self.fit1]
-           for f in fit_a:
-               f._pck_(action,fpck)
-       if action == 'load':
-           self.X =  pickle.load( fpck)
-           self.Y = pickle.load( fpck )
-           self.c = pickle.load( fpck )
-           self.datadir = pickle.load( fpck )
-           self.range = pickle.load( fpck )           
-           fit_a = [self.fit1]
-           for f in fit_a:
-               f._pck_(action,fpck)
-           
     def _setfitexprs_(self):
         self.fit1._setfitexprs_()
 
-
+    # Data set tab
+    name = Str
     plotme = Bool(False, label="plot me ?")
     X2 = Bool(False, label="X2?")
     Y2 = Bool(False, label="Y2?")
-    
     X = Str('TRAPFREQ:modfreq', label="X")
     Y = Str('CPP:ax0w', label="Y")
-   
     c = Str('', label="Color") 
-
     datadir = Str( DataDir(), label="DataDir", desc="directory where reports are located")
     range = Str( '', label="Range", desc="range of data to be plotted")
-
     fit1 = Instance(Fits, ())
-
+    
+    # Raw data tab
     raw_data = String()
     saveraw = Button('Save Raw Data')
     loadscan = Button('Load Scan')
+  
+    # Stats tab
+    stat = String()
+
     fitw=550
-   
     view = View( Group(
                 Group(Item('plotme'),
                       Item('X2'),
@@ -141,7 +122,11 @@ class DataSet(HasTraits):
                     Group(     Item (
                                     'raw_data',show_label=False, springy=True, style='custom' 
                                    ),
-                               Item('saveraw',show_label=False),label='Raw Data')
+                               Item('saveraw',show_label=False),label='Raw Data'),
+                    Group(     Item (
+                                    'stat',show_label=False, springy=True, style='custom' 
+                                   ),
+                               label='Stats')
                                    ,dock='tab', height=600
               )
 
@@ -149,8 +134,24 @@ class DataSet(HasTraits):
        """ Executes qrange to extract data from reports. 
        """
        data, errmsg, rawdat = qrange(self.datadir, self.range, self.X + " " + self.Y)
-       display(errmsg)
+       print errmsg + '\n'
        self.raw_data = rawdat
+       colnames = rawdat.split('\n')[0]
+       colnames = colnames[1:].split('\t')[1:]
+       s = ''
+       for i in range(data.shape[1]):
+         col = data[:,i]
+         s00 = numpy.mean( col ) #mean 
+         s01 = stats.sem( col ) #standard error of the mean 
+         s02 = numpy.std( col ) #standard deviation
+         s03 = numpy.max( col ) - numpy.min( col ) # peak to peak value
+         s = s + colnames[i] + ':\n'
+         s = s + "Mean                   = %10.6f\n" %  s00
+         s = s + "Std. error of the mean = %10.6f\n" %  s01
+         s = s + "Std. deviation         = %10.6f\n" %  s02
+         s = s + "Pk-Pk                  = %10.6f\n" %  s03
+         s = s + '\n'
+       self.stat = s
        return data
 	   
     def _saveraw_changed(self):
@@ -190,7 +191,7 @@ class ProcessThread(Thread):
         """ Spawns the processing job. """
         try:
             if self.processing_job.isAlive():
-                display("Processing to slow")
+                print "Processing too slow" + '\n'
                 return
         except AttributeError:
             pass
@@ -198,10 +199,10 @@ class ProcessThread(Thread):
         self.processing_job.start()
 
     def run(self):
-        """ Runs the fitting loop. """
+        """ Runs the plotting loop. """
         i=0
         while not self.wants_abort:
-            self.process([self.dat1,self.dat2,self.dat3,self.dat4,self.dat5], self.image_clear, self.figure)
+            self.process(self.datasets, self.image_clear, self.figure)
             if i==0:
                 self.wants_abort = not self.autoplot
             if i>0 and not self.wants_abort: 
@@ -210,7 +211,16 @@ class ProcessThread(Thread):
                     sleep(2)
             i = i+1
 
-
+    def image_clear(self):
+        """ Clears canvas 
+        """
+        for ax in self.figure.get_axes(): 
+            ax.cla()
+        if not self.autoplot:
+            self.figure.clear()
+        
+        wx.CallAfter(self.figure.canvas.draw)
+    
 def process(dataset_array, image_clear, figure):
     """ Function called to do the processing """
     global colors
@@ -226,7 +236,7 @@ def process(dataset_array, image_clear, figure):
             data = set.getdata_()
             
             datX, datY = (data[:,0], data[:,1])
-            fitX, fitY =  set.fit1.fit(data)  if set.fit1.dofit else (None,None)
+            fitX, fitY =  set.fit1.fit(data)  if set.fit1.dofit or set.fit1.doplot else (None,None)
             
             if data !=None:
                 
@@ -277,59 +287,76 @@ def process(dataset_array, image_clear, figure):
 
 #-------------------------------------------------------------------------------#
 #
-#  CONTROL PANEL
+#  MAIN WINDOW
 #
 #-------------------------------------------------------------------------------#
 
-class ControlPanel(HasTraits):
-    """ This object is the core of the traitsUI interface. Its view is
-    the right panel of the application, and it hosts the method for
-    interaction between the objects and the GUI.
-    """
+class MainWindowHandler(Handler):
+    ## This handler is just graciously taking care of closing 
+    ## the application when it is in the middle of doing a plot or a fit
+    def init(self, info):
+        if load_pck: 
+            info.object._pck_(action='load')
+            info.object._setfitexprs_()
     
-    def _pck_(self,action,fpck):
-        self.dat1._pck_(action,fpck)
-        self.dat2._pck_(action,fpck)
-        self.dat3._pck_(action,fpck)
-        self.dat4._pck_(action,fpck)
-        self.dat5._pck_(action,fpck)
+    def close(self, info, is_OK):
+        if ( info.object.process_thread
+            and info.object.process_thread.isAlive() ):
+            info.object.process_thread.wants_abort = True
+            while info.object.process_thread.isAlive():
+                sleep(0.1)
+            wx.Yield()
+        print 'i am closing down'
+        try:
+            info.object._pck_(action='save')
+        except:
+            pass
+        return True
+
+class MainWindow(HasTraits):
+    """ The main window. """
+    def _pck_(self,action,f=mainpck):
+        if action == 'load':
+            try:
+                fpck=open(f,"rb")
+                print 'Loading panel from %s' % mainpck
+                self.datasets = pickle.load(fpck)
+            except:
+                return
+        if action == 'save':
+            print 'Saving panel to %s' % mainpck
+            fpck=open(f,"w+b")
+            pickle.dump(self.datasets,fpck)
+        fpck.close()
     
     def _setfitexprs_(self):
-        self.dat1._setfitexprs_()
-        self.dat2._setfitexprs_()
-        self.dat3._setfitexprs_()
-        self.dat4._setfitexprs_()
-        self.dat5._setfitexprs_()
+        for set in self.datasets:
+          set._setfitexprs_()
+
+    #---- The figure that is shown on the left----#
+    figure = Figure()
 
     #---- Objects that go in the CONTROL tab ----#
-
-    figure = Instance(Figure)
- 
     clear = Button("clear")
     replot = Button("replot")
     savepck = Button("save pck")
     loadpck = Button("load pck")
     loadscan = Button("load scan")
-    autoplot = Bool(False, desc="autoplotting: Check box to autplot", label="auto plotting")
-
-    dat1 = Instance(DataSet, ())
-    dat2 = Instance(DataSet, ())
-    dat3 = Instance(DataSet, ())
-    dat4 = Instance(DataSet, ())
-    dat5 = Instance(DataSet, ()) 
-
+    autoplot = Bool(False, desc="autoplotting: Check box to autplot", label="auto plotting") 
+    datasets = List([ DataSet(name='Data1') ])
+    selected = Instance(DataSet)
+    index = Int
+    addset = Button("Add data set")
     results_string = String()
-        
     process_thread = Instance(ProcessThread)
 
     #---- Objects that go in the REPORT tab ----#
-
     repshot = Int(label='report shotnum')
     getreport = Button('get report')
     report =  String()
 
-
-    view = View(  
+    #---- The view of the right pane is defined ----#
+    control_group = Group(  
                   HGroup(Item('replot', show_label=False),
                          Item('clear', show_label=False ),
                          Item('autoplot', show_label=True ),
@@ -337,17 +364,38 @@ class ControlPanel(HasTraits):
                          Item('savepck', show_label=False ),
                          Item('loadpck', show_label=False )),           
                   Item( '_' ),  
-                  VSplit(                       
-                       Item ('results_string',show_label=False, springy=True, style='custom'),
-                       Group(Item('dat1', style='custom', show_label=False),
-                             Item('dat2', style='custom', show_label=False),
-                             Item('dat3', style='custom', show_label=False),
-                             Item('dat4', style='custom', show_label=False),
-                             Item('dat5', style='custom', show_label=False),                                     
-                             layout='tabbed', springy=True),
+                  VGroup(                       
+                       Item( 'datasets', style='custom', show_label=False,
+                                                         editor = ListEditor( use_notebook=True,
+                                                                              selected='selected',
+                                                                              deletable=True,
+                                                                              dock_style='tab', 
+                                                                              page_name='.name')),
+                       Item('addset', show_label=False),
                         ),
                )
 
+
+    # The main view of the application is divided in two.  
+    # A matplotlib plot is on the left and and the control_group is on the right
+    view = View(HSplit(Item('figure', editor=MPLFigureEditor(), dock='vertical'),
+                       control_group,
+                       show_labels=False,
+                      ),
+                title = 'PLOTGUI :: Plot and Fit',
+                resizable=True,
+                height=0.75, width=0.75,
+                handler=MainWindowHandler(),
+                buttons=NoButtons)
+
+    # Below are the callback definitions
+    def _selected_changed(self,selected):
+        self.index = self.datasets.index(selected)
+
+    def _addset_fired(self):
+        new = copy.deepcopy( self.datasets[ self.index ] ) 
+        new.name = 'Data%s' % (1+len(self.datasets)) 
+        self.datasets.append( new )
 
     def _clear_fired(self):
         """Callback of the "clear" button.  This stops the fitting thread if necessary
@@ -357,8 +405,11 @@ class ControlPanel(HasTraits):
             self.process_thread.wants_abort = True
         else: 
             sleep(1)
-            self.image_clear()
-            self.add_line('canvas cleared')
+            for ax in self.figure.get_axes(): 
+              ax.cla()
+            if not self.autoplot:
+              self.figure.clear()
+            print 'canvas cleared\n'
            
 
     def _autoplot_changed(self):
@@ -369,7 +420,6 @@ class ControlPanel(HasTraits):
         """ Callback of the "replot" button. This starts
         the fitting thread, or kills it.
         """
-        global display
         if self.process_thread and self.process_thread.isAlive():
             self.process_thread.wants_abort = True
         else:
@@ -379,16 +429,8 @@ class ControlPanel(HasTraits):
             self._setfitexprs_()
             self.process_thread = ProcessThread()
             self.process_thread.autoplot = self.autoplot           # Pass autoplot
-            display = self.add_line                                # Make the status update function global
-            self.process_thread.image_clear = self.image_clear     # Pass the function to clear the plot
-            self.process_thread.image_show = self.image_show       # Pass the function to show the plot
             self.process_thread.figure = self.figure               # Pass the figure
-            #self.process_thread.dats = [self.dat1, self.dat2]                   # Pass the data sets
-            self.process_thread.dat1 = self.dat1                   # Pass the data sets
-            self.process_thread.dat2 = self.dat2                   # Pass the data sets
-            self.process_thread.dat3 = self.dat3                   # Pass the data sets
-            self.process_thread.dat4 = self.dat4                   # Pass the data sets
-            self.process_thread.dat5 = self.dat5                   # Pass the data sets
+            self.process_thread.datasets = self.datasets
             self.process_thread.start()                            # Start the fitting thread
 			
     def _savepck_changed ( self ):
@@ -411,119 +453,6 @@ class ControlPanel(HasTraits):
             self._pck_('load',file_pck)
             file_pck.close()
     
-    def add_line(self, string):
-        """ Adds a line to the textbox display.
-        """
-        self.results_string = (string + "\n" + self.results_string)[0:1000]
-
-    def image_clear(self):
-        """ Clears canvas 
-        """
-        for ax in self.figure.get_axes(): 
-            ax.cla()
-        if not self.autoplot:
-            self.figure.clear()
-        
-        wx.CallAfter(self.figure.canvas.draw)
-    
-    def image_show(self, data):
-        """ Plots an image on the canvas
-        """
-        self.image_clear()
-        if not self.autoplot:
-            self.figure.add_axes([0.1,0.1,0.8,0.8])
-        self.figure.axes[0].set_title("[" + self.shots.datadir + " " + str(self.shots.shot0) + " " + str(self.shots.shotf) + "]\n" + self.shots.title)
-        c = ['#0D8800','#1729E0','#00A779','#D8005F','green','red','magenta','black']
-        self.figure.axes[0].set_xlabel(self.keys.X)
-        plotcolor = choice(c)
-        c.remove(plotcolor)
-        self.figure.axes[0].set_ylabel( self.keys.y1keys(0), color=plotcolor )
-        for i in range (self.keys.Y1N()):
-            self.figure.axes[0].plot(data[:,0],data[:,i+1],'.',markersize=15, color=plotcolor)
-            plotcolor = choice(c)
-            c.remove(plotcolor)
-        if self.keys.Y2N() > 0:
-            y2 = self.figure.axes[0].twinx()
-            y2.set_ylabel( self.keys.y2keys(0) , color=plotcolor) 
-            ny1=self.keys.Y1N()
-            for i in range (self.keys.Y2N()):
-                y2.plot( data[:,0], data[:,i+1+ny1],'.',markersize=15, color=plotcolor)
-                plotcolor = choice(c)
-                c.remove(plotcolor) 
-        wx.CallAfter(self.figure.canvas.draw)
-
-#-------------------------------------------------------------------------------#
-#
-#  MAIN WINDOW
-#
-#-------------------------------------------------------------------------------#
-
-class MainWindowHandler(Handler):
-    ## This handler is just graciously taking care of closing 
-    ## the application when it is in the middle of doing a plot or a fit
-    def init(self, info):
-        if load_pck: 
-            info.object._pck_(action='load')
-            info.object.panel._setfitexprs_()
-    
-    def close(self, info, is_OK):
-        if ( info.object.panel.process_thread
-            and info.object.panel.process_thread.isAlive() ):
-            info.object.panel.process_thread.wants_abort = True
-            while info.object.panel.process_thread.isAlive():
-                sleep(0.1)
-            wx.Yield()
-        print 'i am closing down'
-        try:
-            info.object._pck_(action='save')
-        except:
-            pass
-        return True
-
-class MainWindow(HasTraits):
-    """ The main window, here go the instructions to create and destroy the application. """
-    figure = Instance(Figure)
-    panel = Instance(ControlPanel)
-
-    def _figure_default(self):
-        figure = Figure()
-        return figure
-
-    def _panel_default(self):
-        return ControlPanel(figure=self.figure)
-        
-    def _pck_(self,action,f=mainpck):
-        if action == 'load':
-            try:
-                fpck=open(f,"rb")
-                print 'Loading panel from %s' % mainpck
-            except:
-                return
-        if action == 'save':
-            print 'Saving panel to %s' % mainpck
-            fpck=open(f,"w+b")
-        self.panel._pck_(action,fpck)
-        fpck.close()
-
-    # The main view of the application is divided in two.  
-    # A matplotlib plot is on the left and an instance of ControlPanel is on the right
-    view = View(HSplit(Item('figure', editor=MPLFigureEditor(), dock='vertical'),
-                       Item('panel', style="custom"),
-                       show_labels=False,
-                      ),
-                title = 'PLOTGUI :: Plot and Fit',
-                resizable=True,
-                height=0.75, width=0.75,
-                handler=MainWindowHandler(),
-                buttons=NoButtons)
-
-
-
-
-
-	
-
-
 
 if __name__ == '__main__':
     MainWindow().configure_traits()
