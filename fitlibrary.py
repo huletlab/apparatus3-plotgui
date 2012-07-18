@@ -26,7 +26,18 @@ expsine = fits( lambda x,p0,p1,p2,p3,p4: p0*numpy.sin(p1*x*numpy.pi*2-p2)*numpy.
 expsine.fitexpr = 'a[0]*sin( a[1]*x*2*pi-a[2] )*exp(-x*a[3]) + a[4]'
 
 temperature = fits( lambda x,p0,p1 : (p0**2+13.85e-6*1e8*2*p1*x**2)**0.5 )
-temperature.fitexpr = '(a[0]^2+2*kb/M*a[1]*x^2)^0.5' 
+temperature.fitexpr = '(a[0]^2+2*kb/M*a[1]*x^2)^0.5'
+
+# p0 = amplitude
+# p1 = center frecuency
+# p2 = pulse duration
+# p3 = offset
+# numpy defines sinc(x) as sin(pi*x) / (pi*x) 
+# so sin(x)/x = numpy.sinc( x/pi ) 
+rabiresonance = fits( lambda x,p0,p1,p2,p3: p0*(numpy.sinc( (1/numpy.pi) * 2*numpy.pi*(x-p1) * (p2 / 2.))**2. ) +p3 )
+rabiresonance.fitexpr = 'a[0]*sinc^2( 2*pi * (x-a[1]) * a[2]/2 ) +a[3]'
+
+ 
 
 fitdict = {}
 fitdict['Gaussian'] = gaus1d
@@ -34,6 +45,7 @@ fitdict['Exp'] = exp1d
 fitdict['Sine'] = sine
 fitdict['ExpSine'] = expsine
 fitdict['Temperature'] = temperature
+fitdict['RabiResonance'] = rabiresonance
 
 
 
@@ -52,7 +64,11 @@ def fit_function(p,data,function):
     pfit, pvariance = optimize.curve_fit(function,datax,datay,p0)
     error=[]
     for i in range(len(pfit)):
-        error.append(pvariance[i][i]**0.5)
+        try:
+          error.append(pvariance[i][i]**0.5)
+        except:
+          print "There was an error and a proper fit could not be obtained!"
+          error.append( 0.00 )
     
     error = numpy.append(numpy.array(error),numpy.zeros(5-len(p0))).reshape(5,1)
 
