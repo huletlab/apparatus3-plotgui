@@ -78,6 +78,7 @@ class DataSet(HasTraits):
 
     # Data set tab
     name = Str
+    descr = Str( '', label="Description", desc="describe the contents of the data set")
     plotme = Bool(False, label="plot me ?")
     X2 = Bool(False, label="X2?")
     Y2 = Bool(False, label="Y2?")
@@ -98,6 +99,10 @@ class DataSet(HasTraits):
 
     fitw=550
     view = View( Group(
+                Group(Item('name'),
+                      Item('descr', springy=True),
+                      orientation='horizontal'
+                     ),
                 Group(Item('plotme'),
                       Item('X2'),
                       Item('Y2'),
@@ -154,6 +159,11 @@ class DataSet(HasTraits):
        self.stat = s
        return data
 
+    def _descr_changed(self):
+        if '_' in self.descr: 
+          self.name = self.descr.split('_')[0]
+        else: 
+          self.name = self.descr[:4]
 
     def _saveraw_changed(self):
         """ Save raw data to choosen location"""
