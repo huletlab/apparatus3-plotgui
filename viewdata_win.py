@@ -101,8 +101,8 @@ class DataSet(HasTraits):
                 Group(Item('plotme'),
                       Item('X2'),
                       Item('Y2'),
-					  spring,
-					  Item('loadscan', show_label=False ),
+                      spring,
+                      Item('loadscan', show_label=False ),
                       orientation='horizontal'
                       ),
     
@@ -153,7 +153,8 @@ class DataSet(HasTraits):
          s = s + '\n'
        self.stat = s
        return data
-	   
+
+
     def _saveraw_changed(self):
         """ Save raw data to choosen location"""
       
@@ -283,6 +284,8 @@ def process(dataset_array, image_clear, figure):
     if figure.axes[0].yaxis.get_data_interval()[-1] > 1e3:
         figure.axes[0].yaxis.set_major_formatter( matplotlib.ticker.FormatStrFormatter('%.1e'))
         
+    # figure.tight_layout()
+        
     wx.CallAfter(figure.canvas.draw)
 
 #-------------------------------------------------------------------------------#
@@ -319,12 +322,12 @@ class MainWindow(HasTraits):
         if action == 'load':
             try:
                 fpck=open(f,"rb")
-                print 'Loading panel from %s' % mainpck
+                print 'Loading panel from %s' % f
                 self.datasets = pickle.load(fpck)
             except:
                 return
         if action == 'save':
-            print 'Saving panel to %s' % mainpck
+            print 'Saving panel to %s' % f
             fpck=open(f,"w+b")
             pickle.dump(self.datasets,fpck)
         fpck.close()
@@ -432,7 +435,8 @@ class MainWindow(HasTraits):
             self.process_thread.figure = self.figure               # Pass the figure
             self.process_thread.datasets = self.datasets
             self.process_thread.start()                            # Start the fitting thread
-			
+
+
     def _savepck_changed ( self ):
         """ Handles the user clicking the 'save pck...' button. Save the pck file to desired directory
         """ 

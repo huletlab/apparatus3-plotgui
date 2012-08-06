@@ -29,6 +29,14 @@ temperature = fits( lambda x,p0,p1 : (p0**2+13.85e-6*1e8*2*p1*x**2)**0.5 )
 temperature.fitexpr = '(a[0]^2+2*kb/M*a[1]*x^2)^0.5'
 
 # p0 = amplitude
+# p1 = center
+# p2 = linewidth
+# p3 = offset
+lorentz1d = fits( lambda x,p0,p1,p2,p3 : p0*( 1 / ( numpy.pi * p2 * ( 1 + (( x - p1 ) / p2)**2 ) ) ) + p3 )
+lorentz1d.fitexpr = ' a[0]*( 1 / ( pi * a[2] * ( 1 + (( x - a[1] ) / a[2])**2 ) ) ) + a[3] )'
+
+
+# p0 = amplitude
 # p1 = center frecuency
 # p2 = pulse duration
 # p3 = offset
@@ -41,6 +49,7 @@ rabiresonance.fitexpr = 'a[0]*sinc^2( 2*pi * (x-a[1]) * a[2]/2 ) +a[3]'
 
 fitdict = {}
 fitdict['Gaussian'] = gaus1d
+fitdict['Lorentzian'] = lorentz1d
 fitdict['Exp'] = exp1d
 fitdict['Sine'] = sine
 fitdict['ExpSine'] = expsine
@@ -82,7 +91,7 @@ def plot_function(p,datax,function):
     # Chekck the length of p
     pLen = len(inspect.getargspec(function)[0])-1
     p0 = p[0:pLen]
-    x = numpy.linspace(numpy.min(datax), numpy.max(datax), 100)
+    x = numpy.linspace(numpy.min(datax), numpy.max(datax), 200)
     y = function(x,*p0)
     return x, y
 
