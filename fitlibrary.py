@@ -13,21 +13,47 @@ class fits:
 #
 #-------------------------------------------------------------------------------#
 # Currently accepts fits of maximum 5 parameters
+
+
+#------------------- GAUSSIAN
+# p0 = amplitude
+# p1 = center
+# p2 = 1/e^2 width
+# p3 = offset
 gaus1d = fits( lambda x,p0,p1,p2,p3 : p0*numpy.exp(-((x-p1)/p2)**2)+p3 )
 gaus1d.fitexpr = 'a[0] * exp( - ( (x-a[1]) / a[2] )**2 )+a[3]'
 
+#------------------- EXPONENTIAL
+# p0 = start value
+# p1 = decay constant
+# p2 = offset
 exp1d = fits( lambda x,p0,p1,p2:  p0*numpy.exp(-(x)/p1)+p2)
 exp1d.fitexpr = 'a[0] * exp( - x / a[1]  )+a[2]'	
 
+#------------------- SINE
+# p0 = amplitude
+# p1 = frequency
+# p2 = phase
+# p3 = offset
 sine = fits( lambda x,p0,p1,p2,p3: p0*numpy.sin(p1*x*numpy.pi*2-p2)+p3 )
 sine.fitexpr = 'a[0] * sin( a[1]*x*2*pi-a[2]) + a[3]'
 
+#------------------- EXPONENTIAL DECAY SINE
+# p0 = amplitude
+# p1 = frequency
+# p2 = phase
+# p3 = decay constant
+# p4 = offset
 expsine = fits( lambda x,p0,p1,p2,p3,p4: p0*numpy.sin(p1*x*numpy.pi*2-p2)*numpy.exp(-x*p3)+p4 )
 expsine.fitexpr = 'a[0]*sin( a[1]*x*2*pi-a[2] )*exp(-x*a[3]) + a[4]'
 
+#------------------- TEMPERATURE
+# p0 = initial 1/e size
+# p1 = Temperature
 temperature = fits( lambda x,p0,p1 : (p0**2+13.85e-6*1e8*2*p1*x**2)**0.5 )
 temperature.fitexpr = '(a[0]^2+2*kb/M*a[1]*x^2)^0.5'
 
+#------------------- LORENTZIAN
 # p0 = amplitude
 # p1 = center
 # p2 = linewidth
@@ -35,7 +61,7 @@ temperature.fitexpr = '(a[0]^2+2*kb/M*a[1]*x^2)^0.5'
 lorentz1d = fits( lambda x,p0,p1,p2,p3 : p0*( 1 / ( numpy.pi * p2 * ( 1 + (( x - p1 ) / p2)**2 ) ) ) + p3 )
 lorentz1d.fitexpr = ' a[0]*( 1 / ( pi * a[2] * ( 1 + (( x - a[1] ) / a[2])**2 ) ) ) + a[3] )'
 
-
+#------------------- RABI RESONANCE (aka SINC)
 # p0 = amplitude
 # p1 = center frecuency
 # p2 = pulse duration
@@ -44,6 +70,17 @@ lorentz1d.fitexpr = ' a[0]*( 1 / ( pi * a[2] * ( 1 + (( x - a[1] ) / a[2])**2 ) 
 # so sin(x)/x = numpy.sinc( x/pi ) 
 rabiresonance = fits( lambda x,p0,p1,p2,p3: p0*(numpy.sinc( (1/numpy.pi) * 2*numpy.pi*(x-p1) * (p2 / 2.))**2. ) +p3 )
 rabiresonance.fitexpr = 'a[0]*sinc^2( 2*pi * (x-a[1]) * a[2]/2 ) +a[3]'
+
+#------------------- LINE
+# p0 = slope
+# p1 = intercept
+linear = fits( lambda x,p0,p1: p0*x+p1 )
+linear.fitexpr = 'a[0]*x + a[1]'
+
+#------------------- GAUSSIAN BEAM 1070 nm (x in MIL, w in uMETER)
+l1070 = 1070. * 25.4 / 1000.
+beam1070 = fits( lambda x,p0,p1: p0*numpy.sqrt( 1 +  ( (x-p1)/(numpy.pi*p0*p0/l1070) )**2. ) )
+beam1070.fitexpr = 'a[0] * sqrt ( 1 + ( (x-a[1]) / ( pi * a[0]^2 / lambda ) )**2 )'
 
  
 
@@ -55,7 +92,8 @@ fitdict['Sine'] = sine
 fitdict['ExpSine'] = expsine
 fitdict['Temperature'] = temperature
 fitdict['RabiResonance'] = rabiresonance
-
+fitdict['Linear'] = linear
+fitdict['Beam1070'] = beam1070
 
 
 #-------------------------------------------------------------------------------#
@@ -127,8 +165,13 @@ def test_function(p,function):
 	plt.plot(fitX,fitY,'-')
 	plt.show()
 
-from enthought.traits.api import *
-from enthought.traits.ui.api import View, Item, Group, HGroup, VGroup, HSplit, VSplit,Handler, CheckListEditor, EnumEditor, ListStrEditor,ArrayEditor, spring
+try:
+  from enthought.traits.api import *
+  from enthought.traits.ui.api import View, Item, Group, HGroup, VGroup, HSplit, VSplit,Handler, CheckListEditor, EnumEditor, ListStrEditor,ArrayEditor, spring
+except:
+  from traits.api import *
+  from traitsui.api import View, Item, Group, HGroup, VGroup, HSplit, VSplit,Handler, CheckListEditor, EnumEditor, ListStrEditor,ArrayEditor, spring
+
 import pickle
 
 class Fits(HasTraits):
