@@ -11,9 +11,9 @@ import glob
 #    atomcool_lab_path = 'L:/'
 
 
-from enthought.traits.api import HasTraits, Str, List, Enum, Bool
-from enthought.traits.ui.api import View, Item
-from enthought.traits.ui.menu import OKButton, CancelButton
+from traits.api import HasTraits, Str, List, Enum, Bool
+from traitsui.api import View, Item
+from traitsui.menu import OKButton, CancelButton
 
 import os
 

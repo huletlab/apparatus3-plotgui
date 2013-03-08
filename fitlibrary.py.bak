@@ -71,7 +71,7 @@ fitdict['ExpSine'] = expsine
 # p0 = initial 1/e size in um
 # p1 = Temperature in uK
 #temperature = fits( lambda x,p0,p1 : numpy.sqrt(p0**2 + 2 * 13.85e-6*1e8 * p1 * x**2 ) )
-temperature = fits( lambda x,p : numpy.sqrt( p[0]**2 + 2 * 13.85e-6*1e8 * p[1] * x**2 ) )
+temperature = fits( lambda x,p : numpy.sqrt(p[0]**2 + 2 * 13.85e-6*1e8 * p[1] * x**2 ) )
 temperature.fitexpr = '(a[0]^2+2*kb/M*a[1]*x^2)^0.5'
 fitdict['Temperature'] = temperature
 
@@ -84,15 +84,6 @@ lorentz1d = fits( lambda x,p : p[0]*( 1 / ( numpy.pi * p[2] * ( 1 + (( x - p[1] 
 #lorentz1d = fits( lambda x,p0,p1,p2,p3 : p0*( 1 / ( numpy.pi * p2 * ( 1 + (( x - p1 ) / p2)**2 ) ) ) + p3 )
 lorentz1d.fitexpr = ' a[0]*( 1 / ( pi * a[2] * ( 1 + (( x - a[1] ) / a[2])**2 ) ) ) + a[3] )'
 fitdict['Lorentzian'] = lorentz1d
-
-#---------------------- DOUBLE LORENTZIAN
-# p0 = amplitude
-# p1 = center
-# p2 = linewidth
-# p3 = offset
-lorentzdouble = fits( lambda x,p : p[0]*( 1 / ( numpy.pi * p[2] * ( 1 + (( x - p[1] ) / p[2])**2 ) ) ) + p[3] + p[0]*( 1 / ( numpy.pi * p[2] * ( 1 + (( x - p[4] ) / p[2])**2 ) ) ))
-lorentzdouble.fitexpr = ' a[0]*( 1 / ( pi * a[2] * ( 1 + (( x - a[1] ) / a[2])**2 ) ) ) + a[3] + a[0]*( 1 / ( pi * a[2] * ( 1 + (( x - a[4] ) / a[2])**2 ) ) )'
-fitdict['DoubleLorentzian'] = lorentzdouble
 
 #---------------------- RABI RESONANCE (aka SINC)
 # p0 = amplitude
@@ -113,24 +104,6 @@ linear = fits( lambda x,p: p[0]*x+p[1] )
 #linear = fits( lambda x,p0,p1: p0*x+p1 )
 linear.fitexpr = 'a[0]*x + a[1]'
 fitdict['Linear'] = linear
-
-#---------------------- PARABOLA
-# p0 = curvature
-# p1 = center
-# p2 = offset
-parabola = fits( lambda x,p:  p[0] * (x-p[1])**2 + p[2]   )
-parabola.fitexpr = 'p[0]*(x-p[1])**2 + p[2]'
-fitdict['Parabola'] = parabola
-
-#---------------------- GAUSSIAN BEAM 1070 nm with M^2 (x in MIL, w in uMETER)
-# p0 = w0
-# p1 = x0
-# p2 = m2
-l1070 = 1070. * 25.4 / 1000.
-beam2_1070 = fits( lambda x,p: p[0]*numpy.sqrt( 1 +  ( (x-p[1])/(numpy.pi*p[0]*p[0]/l1070/p[2]) )**2. ) )
-#beam1070 = fits( lambda x,p0,p1: p0*numpy.sqrt( 1 +  ( (x-p1)/(numpy.pi*p0*p0/l1070) )**2. ) )
-beam2_1070.fitexpr = 'a[0] * sqrt ( 1 + ( (x-a[1]) / ( pi * a[0]^2 / lambda / a[2]) )**2 )'
-fitdict['Beam1070m2'] = beam2_1070
 
 #---------------------- GAUSSIAN BEAM 1070 nm (x in MIL, w in uMETER)
 # p0 = w0
@@ -181,21 +154,22 @@ def mask_function( p, mask, function):
                         counter = counter +1
 
         mask_matrix = numpy.transpose(numpy.matrix(mask_matrix))
+        print (numpy.array([1,1,1])*mask_matrix+(1-mask)*p).tolist()[0]
+        print mask*p
         function_masked = lambda x_m,p_m : function (x_m,(numpy.array(p_m)*mask_matrix+(1-mask)*p).tolist()[0])
 
-        return function_masked,mask_matrix
+        return function_masked,mask_matrix,p_masked
 
-def fit_mask_function(p,data,mask,function):
+def fit_mask_function(p,data,mask,fucntion):
 
 	mask = numpy.array(mask)
 	p = numpy.array(p)
 	mask_fun, mask_matrix = mask_function(p,mask,function)
-	pfit,fiterror = fit_function((numpy.array(p)*mask_matrix.transpose()).tolist()[0],data,mask_fun)
-	print numpy.array(p)*mask_matrix.transpose(),numpy.array(pfit).reshape(1,len(pfit)),mask_matrix,mask,p
-	pfit_unmask = numpy.array(pfit.reshape(1,len(pfit))*mask_matrix + (1-mask)*p)
-	fiterror_unmask = numpy.array(fiterror.reshape(1,len(pfit))*mask_matrix)
+	pfit,fiterror = fit_fuction(numpy.array(p)*mask_matrix.transpose(),data,mask_fun)
+	pfit_unmask = list(pfit*mask_matrix + (1-mask)*p)  
+	fiterror_unmask = list(fiterror*mask_matrix)
 
-	return pfit_unmask.reshape(5,1), fiterror_unmask.reshape(5,1)
+	return pfit_unmask, fiterror_unmask
 
 def fit_function(p,data,function):
     # Chekck the length of p
@@ -204,12 +178,11 @@ def fit_function(p,data,function):
     p0 = p
    
     datax=data[:,0]
-    datay=data[:,1]	 
+    datay=data[:,1]	  
 
     errfunc = lambda p, x, y: function(x,p) - y
     pfit, pcov, infodict, errmsg, success = optimize.leastsq( errfunc, p0, args=(datax, datay), full_output=1)
     #pfit, pvariance = optimize.curve_fit(function,datax,datay,[p0])
-
    
     # Estimate the confidence interval of the fitted parameter using
     # the bootstrap Monte-Carlo method
@@ -238,7 +211,7 @@ def fit_function(p,data,function):
     error=[]
     for i in range(len(pfit)):
         try:
-          error.append( numpy.absolute(pcov[i][i])**0.5)
+          error.append(pcov[i][i]**0.5)
         except:
           #print "A proper fit error could not be obtained!"
           #print "pfit = ", pfit
@@ -249,32 +222,38 @@ def fit_function(p,data,function):
     pfit = mean_pfit.tolist()
     error = err_pfit.tolist()
 
-    # Was trying to return same length of pfit, take out by Ernie 08/20/12 
-    pfit = numpy.array(pfit)  #numpy.append(numpy.array(pfit),numpy.zeros(5-len(p0))).reshape(5,1)
-    error = numpy.array(error)#numpy.append(numpy.array(error),numpy.zeros(5-len(p0))).reshape(5,1)
+    # Return same length of pfit
+    pfit = numpy.append(numpy.array(pfit),numpy.zeros(5-len(p0))).reshape(5,1)
+    error = numpy.append(numpy.array(error),numpy.zeros(5-len(p0))).reshape(5,1)
     
     return pfit,error
 
 def plot_function(p,datax,function, xlim = None):
+    # Chekck the length of p
+
+    #pLen = len(inspect.getargspec(function)[0])-1
+    #p0 = p[0:pLen]
     p0 = p
     
     if xlim == None: 
       x = numpy.linspace(numpy.min(datax), numpy.max(datax), 200)
     else: 
       x = numpy.linspace(xlim[0], xlim[1], 200)
+    #y = function(x,*p0)
     y = function(x,p0)
     return x, y
 
-
 def fake_data(p,datax,function):
-    y = function(datax,p)
+    # Chekck the length of p
+    pLen = len(inspect.getargspec(function)[0])-1
+    p0 = p[0:pLen]
+    y = function(datax,*p0)
     return datax, y
     
 
 def test_function(p,function):
 	# generate random data
 	ax=numpy.linspace(0,3,12)
-	# print p
 	x,dat = fake_data( p, ax, function)
 	ay = numpy.array(dat)
 	noise = 200*(numpy.random.rand(ax.shape[0])-0.5)
@@ -297,7 +276,7 @@ def test_function(p,function):
 	plt.show()
 
 from traits.api import *
-from traitsui.api import View, Item, Group, HGroup, VGroup, HSplit, VSplit,Handler, CheckListEditor, EnumEditor, ListStrEditor,ArrayEditor, spring, BooleanEditor,ListEditor
+from traitsui.api import View, Item, Group, HGroup, VGroup, HSplit, VSplit,Handler, CheckListEditor, EnumEditor, ListStrEditor,ArrayEditor, spring
 
 import pickle
 
@@ -313,13 +292,10 @@ class Fits(HasTraits):
     
     y0 = Float(-1e15, label="y0", desc="y0 for fit range")
     yf = Float(1e15, label="yf", desc="yf for fit range")
-    fit_mask = List(Bool(True,editor=BooleanEditor(mapping={"yes":True, "no":False})),[True,True,True,True,True])   
 
-    a0 = Array(numpy.float,(5,1),editor=ArrayEditor(width=-82))
-    a = Array(numpy.float,(5,1),editor=ArrayEditor(width=-82))
-    ae = Array(numpy.float,(5,1),editor=ArrayEditor(width=-82))
-
-    column_labels = Str('A0   |   Afit   |   Aerr   |   Fit Mask')
+    a0 = Array(numpy.float,(5,1),editor=ArrayEditor(width=-100))
+    a = Array(numpy.float,(5,1),editor=ArrayEditor(width=-100))
+    ae = Array(numpy.float,(5,1),editor=ArrayEditor(width=-100))
 	
     traits_view = View(
                     Group(Group(
@@ -330,17 +306,17 @@ class Fits(HasTraits):
                         Group(
                        Item('x0'),
                        Item('xf'), 
+                       orientation='horizontal', layout='normal'),
+                                               Group(
                        Item('y0'),
                        Item('yf'), 
-                       orientation='horizontal', layout='normal'),
+                       orientation='horizontal', layout='normal'), 
                     Group(
                        Item('fitexpr',style='readonly')),
-                    Group( Item('column_labels', style='readonly',show_label=False)),
                     Group(
-                       Item('a0',show_label=False),
-                       Item('a',show_label=False),
-		       Item('ae',show_label=False),
-		       Item('fit_mask', style='custom',editor = ListEditor(),show_label=False),
+                       Item('a0'),
+                       Item('a'),
+					   Item('ae'),
                        orientation='horizontal'),),
                        dock='vertical',
                )
@@ -362,7 +338,6 @@ class Fits(HasTraits):
           exit(1)
                               
     def fit(self,data):
-	mask =  [ 1 if i else 0 for i in self.fit_mask]
         fitdata, n = self.limits(data)
         if n == 0:
             print "No points in the specified range [x0:xf], [y0:yf]"
@@ -373,7 +348,7 @@ class Fits(HasTraits):
           return plot_function(self.a0[:,0] , fitdata[:,0], f.function)
         else:
           print "Fitting %s" % self.func
-          self.a, self.ae=fit_mask_function(self.a0[:,0],fitdata,mask,f.function)
+          self.a, self.ae=fit_function(self.a0[:,0],fitdata,f.function)
           return plot_function(self.a[:,0] , fitdata[:,0],f.function)
            
 if __name__ == "__main__":

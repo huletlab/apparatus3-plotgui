@@ -27,9 +27,6 @@ from fitlibrary import Fits
 
 global colors 
 colors = ['#0D8800','#1729E0','#00A779','#D8005F','green','red','magenta','black']
-markers = ['.', 's', 'x', 'D', '+', '*', 'o', '2', '1']
-default_ms = 10.
-default_me = 1.
 
 #-------------------------------------------------------------------------------#
 #
@@ -88,13 +85,6 @@ class DataSet(HasTraits):
     X = Str('TRAPFREQ:modfreq', label="X")
     Y = Str('CPP:ax0w', label="Y")
     c = Str('', label="Color") 
-    mfc = Str('', label="Face")
-    match = Bool(True,label="match?")
- 
-    m = Str('', label="Marker") 
-    ms = Float(default_ms, label="Size")
-    me = Float(default_me, label="EdgeW")
- 
     datadir = Str( DataDir(), label="DataDir", desc="directory where reports are located")
     range = Str( '', label="Range", desc="range of data to be plotted")
     fit1 = Instance(Fits, ())
@@ -123,9 +113,7 @@ class DataSet(HasTraits):
     
                 Item('datadir'),
                 Item('range'),
-                HGroup( Item('c'),  Item('mfc'), Item('match')),
-                HGroup( Item('m'), Item('ms'), Item('me')),
-                
+                Item('c'),
                 Group(
                       Item('X',show_label=True),
                       Item('Y',show_label=True),
@@ -177,20 +165,16 @@ class DataSet(HasTraits):
         else: 
           self.name = self.descr[:4]
 
-    def saverawfile(self,file_name):
+    def _saveraw_changed(self):
+        """ Save raw data to choosen location"""
+      
+        file_name = save_file()
         if file_name != '':
             file_raw=open(file_name,"w+b")
             file_raw.write('#dir:'+self.datadir+'\n')
             file_raw.write('#range:'+self.range+'\n')
             file_raw.write(self.raw_data)
             file_raw.close()
-	
-    def _saveraw_changed(self):
-        """ Save raw data to choosen location"""
-      
-        file_name = save_file()
-    	self.saverawfile(file_name)
-
     def _loadscan_changed ( self ):
         """ Handles the user clicking the 'Loadscan...' button. Load the sweep config file
         """
@@ -258,16 +242,8 @@ def process(dataset_array, image_clear, figure):
     x2y2= 'none'
 
     for set in dataset_array:
-
-        
-        if set.match == True:
-            set.mfc = set.c
-
         if set.c == '':
-            set.c = colors[i % len(colors)]
-        if set.m == '':
-            set.m = markers[i % len(colors)]
-        
+            set.c = colors[i]
         if set.plotme == True and set.range != '':
             
             data = set.getdata_()
@@ -280,7 +256,7 @@ def process(dataset_array, image_clear, figure):
                 if not set.X2 and not set.Y2:
                     ax1.set_xlabel(set.X,color=set.c)
                     ax1.set_ylabel(set.Y,color=set.c)
-                    ax1.plot(datX,datY,'.',markersize=set.ms, mec=set.c, mew=set.me, marker=set.m, mfc=set.mfc)
+                    ax1.plot(datX,datY,'.',markersize=15, color=set.c)
                     
                     if fitX != None:
                         ax1.plot(fitX,fitY,'-', color=set.c)
@@ -293,7 +269,7 @@ def process(dataset_array, image_clear, figure):
 
                     if x2y2 =='y2':
                         ax2.set_ylabel(set.Y,color=set.c)
-                        ax2.plot(datX,datY,'.',markersize=set.ms, mec=set.c, mew=set.me, marker=set.m, mfc=set.mfc)
+                        ax2.plot(datX,datY,'.',markersize=15, color=set.c)
                     
                         if fitX != None:
                             ax2.plot(fitX,fitY,'-', color=set.c)
@@ -306,7 +282,7 @@ def process(dataset_array, image_clear, figure):
 
 		    if x2y2 =='x2':
                         ax2.set_xlabel(set.X,color=set.c)
-                        ax2.plot(datX,datY,'.',markersize=set.ms, mec=set.c, mew=set.me,marker=set.m, mfc=set.mfc)
+                        ax2.plot(datX,datY,'.',markersize=15, color=set.c)
                     
                         if fitX!= None:
                             ax2.plot(fitX,fitY,'-', color=set.c)
@@ -321,13 +297,13 @@ def process(dataset_array, image_clear, figure):
                     
                     #ax2.set_xlabel(set.X,color=set.c)
                     #ax2.set_ylabel(set.Y,color=set.c)
-                    #ax2.plot(datX,datY,'.',markersize=set.ms, color=set.c, marker=set.m)
+                    #ax2.plot(datX,datY,'.',markersize=15, color=set.c)
                     
                     #if fitX!= None:
                     #    ax2.plot(fitX,fitY,'-', color=set.c)
 	            pass
         i = i + 1
-
+    
     if figure.axes[0].yaxis.get_data_interval()[-1] > 1e3:
         figure.axes[0].yaxis.set_major_formatter( matplotlib.ticker.FormatStrFormatter('%.2e'))
         
@@ -399,7 +375,6 @@ class MainWindow(HasTraits):
     selected = Instance(DataSet)
     index = Int
     addset = Button("Add data set")
-    savefigure = Button("Save Current Figure")
     results_string = String()
     process_thread = Instance(ProcessThread)
 
@@ -424,7 +399,6 @@ class MainWindow(HasTraits):
                                                                               deletable=True,
                                                                               dock_style='tab', 
                                                                               page_name='.name')),
-                       Item('savefigure', show_label=False),
                        Item('addset', show_label=False),
                         ),
                )
@@ -450,29 +424,6 @@ class MainWindow(HasTraits):
         new = copy.deepcopy( self.datasets[ self.index ] ) 
         new.name = 'Data%s' % (1+len(self.datasets)) 
         self.datasets.append( new )
-    
-    def _savefigure_fired(self):
-	
-	filename = ""
-	rawfile =[]
-	ds = []
-	for i,dataset in enumerate(self.datasets):
-		if(dataset.plotme): 
-			folder = dataset.datadir+"plots/" # Use the folder of the last dataset
-			ds.append(dataset)
-
-	for dataset in ds:
-		fn = dataset.descr + "_" if dataset.descr else ""
-		fn = fn+ dataset.X.replace(":","_")
-		fn = fn+ "_"+ dataset.Y.replace(":","_")
-		fn = fn+ "_"+ dataset.range.replace(":","_").replace(",","_").replace("-","m")
-		if not os.path.exists(folder):os.makedirs(folder)
-		dataset.saverawfile(os.path.join(folder,fn+".dat"))
-		if(filename!=""): filename = filename +"_AND_"
-		filename = filename + fn 
-
-	filename = os.path.join(folder,filename+".png")
-	self.figure.savefig(filename)
 
     def _clear_fired(self):
         """Callback of the "clear" button.  This stops the fitting thread if necessary

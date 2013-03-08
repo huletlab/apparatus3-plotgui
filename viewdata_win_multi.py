@@ -254,8 +254,32 @@ def process(dataset_array, image_clear, figure):
     global colors
     i=0
     image_clear()
-    ax1=figure.add_axes([0.16,0.10,0.68,0.8])
+    #ax1=figure.add_axes([0.16,0.10,0.68,0.8])
+
+    ny2 = 0
+
+    subplots={}
+    nplots = 0
+    
+    for p,set in enumerate(dataset_array):
+        if set.plotme == True and set.range != '':
+            subplots[p]= set.fit1.a0[0][0]
+            if subplots[p]  > nplots:
+               nplots = subplots[p]  
+
+            if set.X2:
+                ny2 = 1
+
+    nplots = nplots+1
+
+    print subplots
+
+    ax1=figure.add_subplot(1+ny2,1,1)
+    if ny2 > 0:
+      newax = figure.add_subplot(1+ny2,1,2)
+
     x2y2= 'none'
+    iy2=0
 
     for set in dataset_array:
 
@@ -286,7 +310,6 @@ def process(dataset_array, image_clear, figure):
                         ax1.plot(fitX,fitY,'-', color=set.c)
                         
                 if not set.X2 and set.Y2:
-                    
                     if x2y2 =='none':
                     	ax2 = ax1.twinx()
 			x2y2 ='y2'
@@ -297,40 +320,35 @@ def process(dataset_array, image_clear, figure):
                     
                         if fitX != None:
                             ax2.plot(fitX,fitY,'-', color=set.c)
-                        
-                if set.X2 and not set.Y2:
-		    
-                    if x2y2 =='none':
-                    	ax2 = ax1.twiny()
-			x2y2 ='x2'
 
-		    if x2y2 =='x2':
-                        ax2.set_xlabel(set.X,color=set.c)
-                        ax2.plot(datX,datY,'.',markersize=set.ms, mec=set.c, mew=set.me,marker=set.m, mfc=set.mfc)
+
+                if set.X2:
                     
-                        if fitX!= None:
-                            ax2.plot(fitX,fitY,'-', color=set.c)
+                    iy2 = iy2 + 1
+                    #newax = figure.add_subplot(1+ny2,1,1+iy2)
+
+                    newax.set_ylabel(set.Y,color=set.c)
+                    newax.set_xlabel(set.X,color=set.c)
+                    newax.plot(datX,datY,'.',markersize=set.ms, mec=set.c, mew=set.me, marker=set.m, mfc=set.mfc)
+                    
+                    if fitX != None:
+                        newax.plot(fitX,fitY,'-', color=set.c)
+                    
                         
-                if set.X2 and set.Y2:
-                    #ax2=ax1.figure.add_axes(ax1.get_position(True), frameon=False)
-                    #ax2.yaxis.tick_right()
-                    #ax2.yaxis.set_label_position('right')
-                    #ax2.yaxis.set_offset_position('right')
-                    #ax2.xaxis.tick_top()
-                    #ax2.xaxis.set_label_position('top')
-                    
-                    #ax2.set_xlabel(set.X,color=set.c)
-                    #ax2.set_ylabel(set.Y,color=set.c)
-                    #ax2.plot(datX,datY,'.',markersize=set.ms, color=set.c, marker=set.m)
-                    
-                    #if fitX!= None:
-                    #    ax2.plot(fitX,fitY,'-', color=set.c)
-	            pass
         i = i + 1
-
-    if figure.axes[0].yaxis.get_data_interval()[-1] > 1e3:
-        figure.axes[0].yaxis.set_major_formatter( matplotlib.ticker.FormatStrFormatter('%.2e'))
+   
+    if x2y2 != 'none':
+        figure.subplots_adjust(left=0.18, right=0.82, bottom=0.1, top=0.95, wspace=0.22, hspace=0.2) 
+    else:
+        figure.subplots_adjust(left=0.18, right=0.92, bottom=0.1, top=0.95, wspace=0.22, hspace=0.2)
+ 
+    for a in figure.axes:
+        if a.yaxis.get_data_interval()[-1] > 1e3:
+           a.yaxis.set_major_formatter( matplotlib.ticker.FormatStrFormatter('%.1e'))
+        else:
+           a.yaxis.set_major_formatter( matplotlib.ticker.FormatStrFormatter('%3g'))
         
+    #figure.tight_layout()
     # figure.tight_layout()
         
     wx.CallAfter(figure.canvas.draw)
