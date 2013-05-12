@@ -66,6 +66,17 @@ expsine = fits( lambda x,p: p[0]*numpy.sin(p[1]*x*numpy.pi*2-p[2])*numpy.exp(-x*
 expsine.fitexpr = 'a[0]*sin( a[1]*x*2*pi-a[2] )*exp(-x*a[3]) + a[4]'
 fitdict['ExpSine'] = expsine
 
+#---------------------- EXPONENTIAL DECAY SINE PLUS LINEAR DECAY
+# p0 = amplitude
+# p1 = frequency
+# p2 = phase
+# p3 = decay constant
+# p4 = offset
+# p5 = slope
+expsineplusline = fits( lambda x,p: p[0]*numpy.sin(p[1]*x*numpy.pi*2-p[2])*numpy.exp(-x*p[3])+p[4]+p[5]*x )
+expsine.fitexpr = 'a[0]*sin( a[1]*x*2*pi-a[2] )*exp(-x*a[3]) + a[4] + a[5]*x'
+fitdict['ExpSinePlusLine'] = expsineplusline
+
 #---------------------- TEMPERATURE
 #  x = time of flight
 # p0 = initial 1/e size in um
@@ -121,6 +132,23 @@ fitdict['Linear'] = linear
 parabola = fits( lambda x,p:  p[0] * (x-p[1])**2 + p[2]   )
 parabola.fitexpr = 'p[0]*(x-p[1])**2 + p[2]'
 fitdict['Parabola'] = parabola
+
+#---------------------- SQRT
+# p0 = scale
+# p1 = center
+# p2 = offset
+squareroot = fits( lambda x,p:  p[0] * numpy.sqrt( numpy.abs(x-p[1]) ) + p[2]   )
+squareroot.fitexpr = 'p[0]*sqrt(x-p[1]) + p[2]'
+fitdict['Sqrt'] = squareroot
+
+#---------------------- POWER LAW
+# p0 = scale
+# p1 = center
+# p2 = offset
+# p3 = power
+powerlaw = fits( lambda x,p:  p[0] * (x-p[1])**(p[3]) + p[2]   )
+powerlaw.fitexpr = 'p[0]*(x-p[1])**p[3] + p[2]'
+fitdict['PowerLaw'] = powerlaw
 
 #---------------------- GAUSSIAN BEAM 1070 nm with M^2 (x in MIL, w in uMETER)
 # p0 = w0
@@ -313,6 +341,10 @@ class Fits(HasTraits):
     
     y0 = Float(-1e15, label="y0", desc="y0 for fit range")
     yf = Float(1e15, label="yf", desc="yf for fit range")
+
+    px0 = Float(numpy.nan, label="px0", desc="x0 for plot range")
+    pxf = Float(numpy.nan, label="pxf", desc="xf for plot range")
+ 
     fit_mask = List(Bool(True,editor=BooleanEditor(mapping={"yes":True, "no":False})),[True,True,True,True,True])   
 
     a0 = Array(numpy.float,(5,1),editor=ArrayEditor(width=-82))
@@ -332,6 +364,8 @@ class Fits(HasTraits):
                        Item('xf'), 
                        Item('y0'),
                        Item('yf'), 
+                       Item('px0'),
+                       Item('pxf'), 
                        orientation='horizontal', layout='normal'),
                     Group(
                        Item('fitexpr',style='readonly')),
@@ -364,17 +398,24 @@ class Fits(HasTraits):
     def fit(self,data):
 	mask =  [ 1 if i else 0 for i in self.fit_mask]
         fitdata, n = self.limits(data)
+      
         if n == 0:
             print "No points in the specified range [x0:xf], [y0:yf]"
             return None,None
         f = fitdict[self.func]
         if not self.dofit:
           print "Evaluating %s" % self.func
-          return plot_function(self.a0[:,0] , fitdata[:,0], f.function)
+          if not numpy.isnan(self.px0) and not numpy.isnan(self.pxf):
+            return plot_function(self.a0[:,0] , fitdata[:,0], f.function, xlim=(self.px0,self.pxf) )
+          else:
+            return plot_function(self.a0[:,0] , fitdata[:,0], f.function)
         else:
           print "Fitting %s" % self.func
           self.a, self.ae=fit_mask_function(self.a0[:,0],fitdata,mask,f.function)
-          return plot_function(self.a[:,0] , fitdata[:,0],f.function)
+          if not numpy.isnan(self.px0) and not numpy.isnan(self.pxf):
+            return plot_function(self.a[:,0] , fitdata[:,0], f.function, xlim=(self.px0,self.pxf) )
+          else:
+            return plot_function(self.a[:,0] , fitdata[:,0], f.function)
            
 if __name__ == "__main__":
         print ""

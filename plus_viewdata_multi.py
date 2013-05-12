@@ -346,6 +346,50 @@ class ProcessThread(Thread):
         
         wx.CallAfter(self.figure.canvas.draw)
 
+def exportpy( export, lines):
+    if export[0] == True:
+      with open( export[1], "a") as pyscript:
+        for l in lines:
+          pyscript.write( l ) 
+          pyscript.write('\n')
+
+def exportdat( export, dat, stat, set): 
+    if export[0] == True:
+       
+       datrange = set.range
+       datrange = datrange.replace('-','m')
+       datrange = datrange.replace(':','-')
+       datrange = datrange.replace(',','_')
+      
+       xkey = set.X
+       xkey = xkey.replace(' ','')
+       xkey = xkey.replace(':','-')
+       xkey = xkey.replace('/','D')
+
+       ykey = set.Y
+       ykey = ykey.replace(' ','')
+       ykey = ykey.replace(':','-')
+       ykey = ykey.replace('/','D')
+ 
+       datfile = os.path.splitext(export[1])[0] + '_' + os.path.split(set.datadir)[1] + '_' + datrange + '_' + xkey + '_' + ykey
+       statfile = datfile + '.stat'
+       datfile = datfile + '.dat' 
+       exportpy( export, [ \
+          r"#Dataset : %s, %s\n" % (set.name, set.legend) ,\
+          r"#data, errmsg, rawdat = qrange.qrange_eval('%s','%s', ['%s','%s'])" % (set.datadir, set.range, set.X , set.Y),\
+          r"#sdata = statdat.statdat( data, 0, 1)" ])
+       numpy.savetxt(datfile, dat )
+       exportpy( export, [ \
+          r"data = numpy.loadtxt('%s')" % datfile ])
+       if stat != None:
+         numpy.savetxt(statfile, stat )
+         exportpy( export, [ \
+            r"sdata = numpy.loadtxt('%s')" % statfile ])
+       else:
+         exportpy( export, [r"sdata = None"])
+    return
+   
+
 def plotset( ax, set, export):
     data, sdata, msg, success = set.getdata_()
     if not success:
@@ -354,24 +398,29 @@ def plotset( ax, set, export):
       else:
         ax.text(0,0.1,"getdata_ FAILED!!")
       return ax
-
-    if export[0] == True:
-      with open( export[1], "a") as pyscript:
-          pyscript.write('#Dataset : %s, %s\n' % (set.name, set.legend))
-          pyscript.write(r'data, errmsg, rawdat = qrange.qrange_eval("%s","%s", ["%s","%s"])' % (set.datadir, set.range, set.X , set.Y) )
-          pyscript.write("\n")
-          pyscript.write(r'sdata = statdat.statdat( data, 0, 1)')
-          pyscript.write("\n\n\n")
-
+   
+          #r"sdata = statdat.statdat( data, 0, 1)",\
+    exportdat( export, data, sdata, set)
+    exportpy( export, [ \
+          r"datX, datY = (data[:,0], data[:,1])",\
+          r"ax.plot(datX,datY,'.',markersize=%d, mec='%s', mew=%d, marker='%s', mfc='%s', label='%s')" % \
+                          (set.ms, set.c, set.me, set.m, set.mfc, set.legend) ,\
+          r"if sdata != None and %d:" % set.ST,\
+          r"  sdata = sdata[sdata[:,0].argsort()]",\
+          r"  ax.plot( sdata[:,0], sdata[:,1], '-', color='%s')" % set.c,\
+          r"  ax.fill_between( sdata[:,0], sdata[:,1] + sdata[:,2], sdata[:,1] - sdata[:,2], facecolor='%s', alpha=0.3 )" % set.c ,\
+          r"  ax.fill_between( sdata[:,0], sdata[:,1] + sdata[:,3], sdata[:,1] - sdata[:,3], facecolor='%s', alpha=0.3 )" % set.c ,\
+          r"  ax.fill_between( sdata[:,0], sdata[:,1] + sdata[:,4]/2., sdata[:,1] - sdata[:,4]/2., facecolor='%s', alpha=0.1 )" % set.c ,\
+          "\n" ])
 
     datX, datY = (data[:,0], data[:,1])
     ax.plot(datX,datY,'.',markersize=set.ms, mec=set.c, mew=set.me, marker=set.m, mfc=set.mfc, label=set.legend)
-    try:
-      fitX, fitY =  set.fit1.fit(data)  if set.fit1.dofit or set.fit1.doplot else (None,None)
-      if fitX != None:
-        ax.plot(fitX,fitY,'-', color=set.c)
-    except:
-      print "Error in getting fit results."
+    #try:
+    fitX, fitY =  set.fit1.fit(data)  if set.fit1.dofit or set.fit1.doplot else (None,None)
+    if fitX != None:
+      ax.plot(fitX,fitY,'-', color=set.c)
+    #except:
+    #  print "Error in getting fit results."
     if sdata != None:
       #Sort sdata by the 0th column
       sdata = sdata[sdata[:,0].argsort()]
@@ -413,7 +462,7 @@ def process(subplot_array, image_clear, figure, gridR, gridC, export):
         gridC = 1
     
 
-            
+    exportpy(export,['outer_grid = matplotlib.gridspec.GridSpec( %d, %d)' % (gridR, gridC)]) 
     outer_grid = matplotlib.gridspec.GridSpec( gridR, gridC )
     
 
@@ -426,7 +475,12 @@ def process(subplot_array, image_clear, figure, gridR, gridC, export):
         for q,subplot in enumerate(subplot_array):
             if subplot.plotme == True:
                 dataset_counter = 0
+
+                exportpy(export, [\
+                'inner_grid = matplotlib.gridspec.GridSpecFromSubplotSpec( %d, %d, subplot_spec= outer_grid[%d] )' % \
+                              ( subplot.gridR, subplot.gridC, subplot_counter )  ] )
                 inner_grid = matplotlib.gridspec.GridSpecFromSubplotSpec( subplot.gridR, subplot.gridC, subplot_spec= outer_grid[subplot_counter] )
+
                 subplot_counter = subplot_counter + 1
 
                 y2 = 'none'
@@ -450,17 +504,26 @@ def process(subplot_array, image_clear, figure, gridR, gridC, export):
 
                             #End ax2 plot if there is one
                             if x2 == 'yes' or y2 == 'yes':
+                                exportpy( export,["ax1.legend(loc='best',numpoints=1, prop={'size':%d})" % legsz ])
+                                exportpy( export,["figure.add_subplot(ax1)" ])
                                 ax1.legend(loc='best',numpoints=1, prop={'size':legsz})
                                 figure.add_subplot( ax1)
+
                                 if x2 == 'yes': 
                                   x2='none'
                                 if y2 == 'yes':
+                                  exportpy( export,["ax1.legend(loc='best',numpoints=1, prop={'size':%d})" % legsz ])
+                                  exportpy( export,["ax2.set_zorder(ax1.get_zorder()+1)"])
+                                  exportpy( export,["ax2.patch.set_visible(False)"])
+
                                   ax2.legend(loc='best',numpoints=1, prop={'size':legsz})
                                   ax2.set_zorder(ax1.get_zorder()+1) # put ax2 in front of ax1
                                   ax2.patch.set_visible(False) # hide the 'canvas'
                                   y2='none'
                             
                             print "  Creating axes..."
+                            exportpy( export,["ax1= matplotlib.pyplot.Subplot( figure, inner_grid[%d] )" % dataset_counter])
+                            exportpy( export,["ax= ax1"])
                             ax1= matplotlib.pyplot.Subplot( figure, inner_grid[dataset_counter] ) 
                             dataset_counter = dataset_counter+1
 
@@ -479,10 +542,6 @@ def process(subplot_array, image_clear, figure, gridR, gridC, export):
                             print "  Plotting data..."
                             ax1 = plotset( ax1, set, export)
                                   
-                            if not set.xticks:
-                              ax1.xaxis.set_ticklabels([])
-                            if not set.yticks:
-                              ax1.yaxis.set_ticklabels([])
                                 
                            
                             if not numpy.isnan(set.Xmin):
@@ -501,6 +560,11 @@ def process(subplot_array, image_clear, figure, gridR, gridC, export):
 
                             if set.gridlines:
                                 ax1.grid(True)
+
+                            if not set.xticks:
+                              ax1.xaxis.set_ticklabels([])
+                            if not set.yticks:
+                              ax1.yaxis.set_ticklabels([])
                             
                             if s+1 == len(subplot.datasets):
                               print "  Closing subplot ax1"
@@ -533,6 +597,8 @@ def process(subplot_array, image_clear, figure, gridR, gridC, export):
                             if y2 =='none':
                                 print "  Creating y2 axes..."
                               	ax2 = ax1.twinx()
+                                exportpy( export,["ax2= ax1.twinx()"])
+                                exportpy( export,["ax= ax2"])
                			y2 ='yes'
                             if set.ylabel != '': 
                               ax2.set_ylabel(set.ylabel)
@@ -550,9 +616,14 @@ def process(subplot_array, image_clear, figure, gridR, gridC, export):
 
                 if x2 == 'yes' or y2 == 'yes':
                     print "  Closing subplot ax1"
+                    exportpy( export,["ax1.legend(loc='best',numpoints=1, prop={'size':%d})" % legsz ])
+                    exportpy( export,["figure.add_subplot(ax1)" ])
                     ax1.legend(loc='best',numpoints=1, prop={'size':legsz})
                     figure.add_subplot( ax1)
                     if y2 == 'yes':
+                      exportpy( export,["ax1.legend(loc='best',numpoints=1, prop={'size':%d})" % legsz ])
+                      exportpy( export,["ax2.set_zorder(ax1.get_zorder()+1)"])
+                      exportpy( export,["ax2.patch.set_visible(False)"])
                       ax2.legend(loc='best',numpoints=1, prop={'size':legsz})
                       ax2.set_zorder(ax1.get_zorder()+1) # put ax2 in front of ax1
                       ax2.patch.set_visible(False) # hide the 'canvas'
@@ -574,7 +645,8 @@ def process(subplot_array, image_clear, figure, gridR, gridC, export):
         
     #figure.tight_layout()
     # figure.tight_layout()
-        
+    
+    exportpy( export, [r"plt.show()"]) 
     wx.CallAfter(figure.canvas.draw)
 
 #-------------------------------------------------------------------------------#
@@ -688,7 +760,7 @@ class MainWindow(HasTraits):
                       ),
                 title = 'PLOTGUI :: Plot and Fit',
                 resizable=True,
-                height=0.75, width=0.5,
+                height=0.75, width=0.75,
                 handler=MainWindowHandler(),
                 buttons=NoButtons)
 
@@ -763,6 +835,17 @@ class MainWindow(HasTraits):
               pyscript = save_file()
               if pyscript == '':
                 self.exportpy = False
+           
+            #Write all the preamble stuff to the py export file 
+            exportpy( (self.exportpy,pyscript), [r"import sys"])
+            exportpy( (self.exportpy,pyscript), [r"import numpy"])
+            exportpy( (self.exportpy,pyscript), [r"import matplotlib.pyplot as plt"])
+            exportpy( (self.exportpy,pyscript), [r"import matplotlib"])
+            exportpy( (self.exportpy,pyscript), [r"sys.path.append('/lab/software/apparatus3/py')"])
+            exportpy( (self.exportpy,pyscript), [r"figure = plt.figure()"])
+
+            exportpy( (self.exportpy,pyscript), [r"import qrange, statdat"])
+
  
             self._setfitexprs_()
             self.process_thread = ProcessThread()
