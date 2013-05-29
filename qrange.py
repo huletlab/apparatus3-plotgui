@@ -52,6 +52,20 @@ def parse_range(rangestr):
         numstr = "%04d" % int(shot)
         if numstr in shots:
           shots.remove(shot)
+    elif len(token) == 4:
+      try:
+        numstr = "%04d" % int(token)
+        shots.append(numstr)
+      except:
+        pass
+    else:
+      numpytoken = token.replace(';',',')
+      try:
+        for s in eval(numpytoken):
+          shots.append( "%04d" % int(s) )
+      except:
+        pass
+        
 
   return shots
 

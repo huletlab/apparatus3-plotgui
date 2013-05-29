@@ -1,40 +1,50 @@
-from threading import Thread
-from time import sleep
-from traits.api import *
-from traitsui.api import View, Item, Group, HGroup, VGroup, HSplit, VSplit,Handler, CheckListEditor, EnumEditor, ListStrEditor,ArrayEditor, spring, ListEditor, CodeEditor, TextEditor
+import threading 
+import time
+
+from  traits.api import HasTraits, Str, Bool, Float, Instance, String, Button,\
+                        List, Enum, Int
+
+from traitsui.api import View, Item, Group, HGroup, VGroup, HSplit, VSplit,\
+                         Handler, CheckListEditor, EnumEditor, ListStrEditor,\
+                         ArrayEditor, spring, ListEditor, CodeEditor, TextEditor
+
 from traitsui.menu import NoButtons
-from traitsui.file_dialog import save_file,open_file
-from chaco.api import Plot, ArrayPlotData
+from traitsui import file_dialog 
 from enable.component_editor import ComponentEditor
 from chaco.chaco_plot_editor import ChacoPlotItem
 from mpl_figure_editor import MPLFigureEditor
 from matplotlib.figure import Figure
-from scipy import stats 
-from numpy import loadtxt, linspace, sin
+from scipy import stats
+
 import wx
 from random import choice
-from configobj import ConfigObj
-
-import qrange
 
 import numpy
 import matplotlib
 import copy
 import pickle
 from configobj import ConfigObj
+import os
 
+import qrange
 from fitlibrary import Fits
 
+#-------------------------------------------------------------------------------#
+#
+#  SOME DEFAULT SETTINGS FOR PLOTS
+#
+#-------------------------------------------------------------------------------#
 global colors 
 colors = ['#0D8800','#1729E0','#00A779','#D8005F','green','red','magenta','black']
 markers = ['.', 's', 'x', 'D', '+', '*', 'o', '2', '1']
 default_ms = 10.
 default_me = 1.
+legsz = 8.
 
 
 #-------------------------------------------------------------------------------#
 #
-#  HELPER FUNCTIONS
+#  GLOBAL SETTINGS 
 #
 #-------------------------------------------------------------------------------#
 
@@ -48,16 +58,21 @@ print "Plotgui base path is %s" % plotgui_path
 print "Main pck file path is %s" % mainpck
 
 # The correct paths are stored in the plotconfini.INI file
+
+#LastAnalyzed is used to control the refreshing of the plot when the autoplot option is 
+#selected. 
 def LastAnalyzed():
     LASTNUM = conf['DIRECTORIES']['lastnum']
     path_is_relative = LASTNUM[0] != '/' and not ':' in LASTNUM  #works for Win and Linux
     if path_is_relative:
       LASTNUM = plotgui_path + '/' + LASTNUM
     file = open( LASTNUM,'r')
-    lastnum = int( file.readline() )
+
     file.close()
     return lastnum
 
+#DataDir is used in the initialization of a new DataSet.  DataSet are generally created
+#by copying them, rather tham from scratch, so this is rarely used.
 def DataDir():
     DATADIR = conf['DIRECTORIES']['datadir']
     path_is_relative = DATADIR[0] != '/' and not ':' in DATADIR  #Works for Win and Linux
@@ -74,8 +89,6 @@ def DataDir():
 #  DATA SET
 #
 #-------------------------------------------------------------------------------#
-
-
 class DataSet(HasTraits):
     """ Object that holds the information defining a data set"""
     def _setfitexprs_(self):
@@ -124,7 +137,6 @@ class DataSet(HasTraits):
     # Raw data tab
     raw_data = String()
     saveraw = Button('Save Raw Data')
-    loadscan = Button('Load Scan')
   
     # Stats tab
     stat = String()
@@ -137,50 +149,53 @@ class DataSet(HasTraits):
                            HGroup( Item('plotme'), 
                                    Item('X2'), 
                                    Item('Y2'), 
-                                   Item('ST'), 
+                                   Item('ST'),
+                                   Item('gridlines'),),
+                           HGroup(
                                    Item('logscaleX'), 
-                                   Item('logscaleY'), 
-                                   Item('gridlines'),
+                                   Item('logscaleY'),
                                    Item('xticks'),
-                                   Item('yticks'),
-),
-                           HGroup(
-                            Item('name',springy=True)),
-                           HGroup(Item('descr_label', style='readonly', show_label=False),
-                                  Item('descr', show_label=False, springy=True), springy=False),
-                           HGroup(
-                                  Item('xlabel', show_label=True, springy=True), 
-                                  Item('ylabel', show_label=True, springy=True), 
-                                  Item('legend', show_label=True, springy=False), 
-                                  springy=False ),
+                                   Item('yticks'),),
+                           VGroup(
+                            HGroup(Item('name',springy=True),),
+                            #HGroup(Item('descr_label', style='readonly', show_label=False),
+                            HGroup(Item('descr', show_label=True, springy=True),), #springy=False),
+                            # HGroup(
+                            #  springy=False ),
+                            ),
  
                            orientation ='vertical', show_border = True,
                           ),
                 Group(
-                      VGroup( Item('datadir'),
-                      Item('range'), ),
-                      HGroup( Item('X',springy=True,show_label=True), Item('Xmin',show_label=False), Item('Xmax',show_label=False)), 
-                      HGroup( Item('Y',springy=True,show_label=True), Item('Ymin',show_label=False), Item('Ymax',show_label=False)), 
+                      VGroup( HGroup(Item('datadir',springy=True),),
+                              HGroup(Item('range',springy=True), ), ),
+                      HGroup( Item('X',springy=True,show_label=True)), 
+
+                      HGroup( Item('Y',springy=True,show_label=True)), 
                       show_border = True,
                      ),
                 Group(
-                      Group( Item('c'),  Item('mfc'), Item('match'), Item('m',width=-30), Item('ms',width=-40), Item('me',width=-40), orientation='horizontal'),
+                      HGroup( Item('xlabel', show_label=True, springy=True), Item('Xmin',show_label=True), Item('Xmax',show_label=True) ),
+                      HGroup( Item('ylabel', show_label=True, springy=True), Item('Ymin',show_label=True), Item('Ymax',show_label=True) ),
+                      HGroup( Item('legend', show_label=True, springy=True), ),
+                      HGroup( Item('c'),  Item('mfc'), Item('match'),),
+                      HGroup( Item('m',width=-30), Item('ms',width=-40), Item('me',width=-40),),
+                       orientation='vertical',
                       show_border = True),
                 Group(
                       Item('fit1', style='custom', show_label=False),
-                      show_border = True
-                     ) ,label='Set', scrollable=True   ),
+                      show_border = True, label='Fit' ),
+                     label='Set', scrollable=True   ),
+
                             
-                    Group(     Item (
-                                    'raw_data',show_label=False, springy=True, style='custom' 
-                                   ),
-                               Item('saveraw',show_label=False),label='Raw Data'),
-                    Group(     Item (
-                                    'stat',show_label=False, springy=True, style='custom' 
-                                   ),
-                               label='Stats')
-                                   ,dock='tab',  scrollable= True,
-              )
+                Group(Item('raw_data',show_label=False, springy=True, style='custom'),
+                      Item('saveraw',show_label=False),label='Raw Data'),
+
+
+                Group(Item ('stat',show_label=False, springy=True, style='custom'),
+                      label='Stats'),
+
+                dock='tab',  scrollable= True, )
 
     def getdata_(self):
        	""" Executes qrange to extract data from reports. 
@@ -196,6 +211,8 @@ class DataSet(HasTraits):
         self.raw_data = rawdat
         colnames = rawdat.split('\n')[0]
         colnames = colnames[1:].split('\t')[1:]
+
+        #Get basic statistics for all columns in data
         s = ''
         for i in range(data.shape[1]):
           col = data[:,i]
@@ -211,9 +228,12 @@ class DataSet(HasTraits):
           s = s + '\n'
         self.stat = s
 
+        #Get data that is reduced statistically. This means that if there is more 
+        #than 1 point for a given value of X,then the average and error will be used
+        #The results of this operation are stored in a list called sdata:
+        #
+        #	sdata = (mean, standard deviation, pk-pk, standard error of the mean) 
         sdata=None
-        #Obtain statistics from data
-        # stats = (mean, standard deviation, pk-pk, standard error of the mean) 
         if self.X == "SEQ:shot" and self.ST: 
             s = [ numpy.mean( data[:,1] ), \
                   numpy.std( data[:,1]), \
@@ -230,36 +250,23 @@ class DataSet(HasTraits):
 
         return data, sdata, msg, True
  
-#    def _name_changed(self):
-#        if '_' in self.name: 
-#          self.name = self.descr.split('_')[0]
-#        else: 
-#          self.name = self.descr[:4]
-
-    def saverawfile(self,file_name):
-        if file_name != '':
+    def _saveraw_changed(self):
+        """ Save raw data to choosen location"""
+      
+        file_name =  savefile_dialog("Save raw data","dat")
+        if file_name != None:
             file_raw=open(file_name,"w+b")
             file_raw.write('#dir:'+self.datadir+'\n')
             file_raw.write('#range:'+self.range+'\n')
             file_raw.write(self.raw_data)
             file_raw.close()
-	
-    def _saveraw_changed(self):
-        """ Save raw data to choosen location"""
-      
-        file_name = save_file()
-    	self.saverawfile(file_name)
 
-    def _loadscan_changed ( self ):
-        """ Handles the user clicking the 'Loadscan...' button. Load the sweep config file
-        """
-        INFO = conf['DIRECTORIES']['infofile']
-        infofile = open(INFO,'r')
-        self.datadir =  infofile.readline()
-        self.range = infofile.readline()
-        self.X = infofile.readline()
-        self.Y = infofile.readline()
 
+#-------------------------------------------------------------------------------#
+#
+#  SUBPLOT - SubPlots are made of DataSets
+#
+#-------------------------------------------------------------------------------#
 class SubPlot(HasTraits):
     """ Object that holds all the datasets that define a subplot in the figure"""
     datasets = List([ DataSet(name='Data1') ])
@@ -273,12 +280,12 @@ class SubPlot(HasTraits):
     selected = Instance(DataSet)
     index = Int
     addset = Button("Add data set")
-    view = View(       HGroup(Item( 'plotme', show_label=False), 
-                         Item('gridR',show_label=False),
-                         Item('gridC',show_label=False),
+    view = View(HGroup(Item( 'plotme', show_label=False), 
+                       Item('gridR',show_label=False),
+                       Item('gridC',show_label=False),
                        Item('descr',show_label=False, springy=True),
                        Item('addset', show_label=False)),
-                       Item( 'datasets', style='custom', show_label=False,
+                       Item('datasets', style='custom', show_label=False,
                                                          editor = ListEditor( use_notebook=True,
                                                                               selected='selected',
                                                                               deletable=True,
@@ -287,54 +294,49 @@ class SubPlot(HasTraits):
                )
     def _selected_changed(self,selected):
         self.index = self.datasets.index(selected)
+
     def _addset_fired(self):
         new = copy.deepcopy( self.datasets[ self.index ] ) 
         new.name = 'Data%s' % (1+len(self.datasets)) 
         self.datasets.append( new )
         if len(self.datasets) > 4:
           self.grids= [ i+1 for i in range(len(self.datasets))]
+        #The newly added dataset is selected
+        self.selected = self.datasets[-1]
+
     def _setfitexprs_(self):
         for set in self.datasets:
           set._setfitexprs_()
+
     def _descr_changed(self):
         self.name = self.descr
+
+
+
 #-------------------------------------------------------------------------------#
 #
 #  PROCESSING THREAD
 #
 #-------------------------------------------------------------------------------#
-
-class ProcessThread(Thread):
-    """ Fitting loop. This is the worker thread that retrieves the 
-    data from the reports, and performs the fits. 
+class ProcessThread(threading.Thread):
+    """ This is the worker thread that retrieves the data from the reports, 
+    makes the plots and performs the fits. 
     """
     wants_abort = False
     autoplot = False
-
-    def process(self, dataset_array, image_clear, figure, gridR, gridC):
-        """ Spawns the processing job. """
-        try:
-            if self.processing_job.isAlive():
-                print "Processing too slow" + '\n'
-                return
-        except AttributeError:
-            pass
-	print "Starting a thread!\n"
-        self.processing_job = Thread(target=process, args=(dataset_array, image_clear, figure, gridR, gridC, self.export))
-        self.processing_job.start()
 
     def run(self):
         """ Runs the plotting loop. """
         i=0
         while not self.wants_abort:
             print "autoplot is %d\n" %self.autoplot
-            self.process(self.subplots, self.image_clear, self.figure, self.gridR, self.gridC)
+            process( self.subplots, self.image_clear, self.figure, self.gridR, self.gridC, self.export)
             if i==0:
                 self.wants_abort = not self.autoplot
             if i>0 and not self.wants_abort: 
                 p0= LastAnalyzed()
                 while p0 == LastAnalyzed() and not self.wants_abort:
-                    sleep(2)
+                    time.sleep(2)
             i = i+1
 
     def image_clear(self):
@@ -343,8 +345,36 @@ class ProcessThread(Thread):
         for ax in self.figure.get_axes(): 
             ax.cla()
         self.figure.clear()
-        
         wx.CallAfter(self.figure.canvas.draw)
+
+
+
+#-------------------------------------------------------------------------------#
+#
+#  RAW PROCESING FUNCTIONS, process is called by the ProcessingThread. 
+#  Other functions in this section are helper functions for process. 
+#
+#-------------------------------------------------------------------------------#
+
+def savefile_dialog(prompt,ext):
+    style = wx.FD_OPEN | wx.FD_FILE_MUST_EXIST
+    dialog = wx.FileDialog(None, prompt, "", "",
+                               "%s files (*.%s)|*.%s" % (ext,ext,ext), wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+    if dialog.ShowModal() == wx.ID_OK:
+        path = dialog.GetPath()
+    else:
+        path = None
+    return path
+
+def openfile_dialog(prompt,ext):
+    dialog = wx.FileDialog(None, prompt, "", "",
+                                       "%s files (*.%s)|*.%s" % (ext,ext,ext), wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
+
+    if dialog.ShowModal() == wx.ID_OK:
+        path = dialog.GetPath()
+    else:
+        path = None
+    return path
 
 def exportpy( export, lines):
     if export[0] == True:
@@ -431,13 +461,22 @@ def plotset( ax, set, export):
       ax.fill_between( sdata[:,0], sdata[:,1] + sdata[:,4]/2., sdata[:,1] - sdata[:,4]/2., facecolor= set.c, alpha=0.1 )
     return ax
 
-legsz = 8.
     
 def process(subplot_array, image_clear, figure, gridR, gridC, export):
     """ Function called to do the processing """
     global colors
     image_clear()
 
+    #Write all the preamble stuff to the py export file 
+    exportpy( export, [r"import sys"])
+    exportpy( export, [r"import numpy"])
+    exportpy( export, [r"import matplotlib.pyplot as plt"])
+    exportpy( export, [r"import matplotlib"])
+    thispath =  r"sys.path.append('" +  os.path.split(os.path.realpath(__file__))[0] + r"')"
+    exportpy( export, [ thispath ]) 
+    #exportpy( export, [r"sys.path.append('/lab/software/apparatus3/py')"])
+    exportpy( export, [r"figure = plt.figure()"])
+    exportpy( export, [r"import qrange, statdat"])
 
     #Setup the grid for all the plots 
     nplots = 0
@@ -649,12 +688,13 @@ def process(subplot_array, image_clear, figure, gridR, gridC, export):
     exportpy( export, [r"plt.show()"]) 
     wx.CallAfter(figure.canvas.draw)
 
+
+
 #-------------------------------------------------------------------------------#
 #
 #  MAIN WINDOW
 #
 #-------------------------------------------------------------------------------#
-
 class MainWindowHandler(Handler):
     ## This handler is just graciously taking care of closing 
     ## the application when it is in the middle of doing a plot or a fit
@@ -668,7 +708,7 @@ class MainWindowHandler(Handler):
             and info.object.process_thread.isAlive() ):
             info.object.process_thread.wants_abort = True
             while info.object.process_thread.isAlive():
-                sleep(0.1)
+                time.sleep(0.1)
             wx.Yield()
         print 'i am closing down'
         try:
@@ -678,59 +718,44 @@ class MainWindowHandler(Handler):
         return True
 
 
-
 class MainWindow(HasTraits):
     """ The main window. """
-    def _pck_(self,action,f=mainpck):
-        if action == 'load':
-            try:
-                fpck=open(f,"rb")
-                print 'Loading panel from %s' % f
-		for item in pickle.load(fpck):
-                	self.subplots.append(item)
-            except :
-		print 'Loading Fail!!'
-                return
-        if action == 'save':
-            print 'Saving panel to %s' % f
-            fpck=open(f,"w+b")
-            pickle.dump(self.subplots,fpck)
-        fpck.close()
+
     
 
     #---- The figure that is shown on the left----#
     figure = Figure()
 
-    #---- Objects that go in the CONTROL tab ----#
+    #---- Objects that go on the top pane ----#
+    status_string = String()
+
     clear = Button("clear")
     replot = Button("replot")
+
     savepck = Button("save pck")
     loadpck = Button("load pck")
-    loadscan = Button("load scan")
+    savetab = Button("save tab")
+    loadtab = Button("load tab")
+
     autoplot = Bool(False, desc="autoplotting: Check box to autplot", label="auto ")
-    gridR = Enum([1,2,3,4] )  
-    gridC = Enum([1,2,3,4] )  
+    gridR = Enum([1,2,3,4,5,6,7,8,9,10,11,12] )  
+    gridC = Enum([1,2,3,4,5,6,7,8,9,10,11,12] )  
     subplots = List([ SubPlot(name='SubPlot1') ])
     selected = Instance(SubPlot)
     index = Int
-    savefigure = Button("Save Current Figure")
     exportpy = Bool(False, label=".py?")
     
     addplot = Button("Add subplot")
-    results_string = String()
+
+    #This thread is going to take care of plotting and fitting
+    #in the background
     process_thread = Instance(ProcessThread)
 
-    #---- Objects that go in the REPORT tab ----#
-    repshot = Int(label='report shotnum')
-    getreport = Button('get report')
-    report =  String()
-
-    #---- The view of the right pane is defined ----#
-    control_group = Group(  
+    #---- The view of the top pane is defined ----#
+    control_group = VSplit( 
+                  Group(
                   HGroup(Item('replot', show_label=False),
                          Item('exportpy',show_label=True),
-                         #Item('clear', show_label=False ),
-                         #Item('autoplot', show_label=True ),
                          spring, 
                          Item('gridR',show_label=False),
                          Item('gridC',show_label=False),
@@ -738,7 +763,10 @@ class MainWindow(HasTraits):
                          Item('addplot', show_label=False),
                          spring,
                          Item('savepck', show_label=False ),
-                         Item('loadpck', show_label=False )),           
+                         Item('loadpck', show_label=False )),       
+                  HGroup(spring,
+                         Item('savetab', show_label=False ),
+                         Item('loadtab', show_label=False )),    
                   Item( '_' ),  
                   VGroup(                       
                        Item( 'subplots', style='custom', show_label=False,
@@ -747,14 +775,16 @@ class MainWindow(HasTraits):
                                                                               deletable=True,
                                                                               dock_style='tab', 
                                                                               page_name='.name')),
-                       Item('savefigure', show_label=False),
                         ),
+               ),
+                  Item('status_string', show_label=False, springy=False,style='custom', resizable=True,height = 50),
                )
 
 
-    # The main view of the application is divided in two.  
+    
+# The main view of the application is divided in two.  
     # A matplotlib plot is on the left and and the control_group is on the right
-    view = View(HSplit(Item('figure', editor=MPLFigureEditor(), dock='vertical'),
+    view = View(HSplit(Item('figure', editor=MPLFigureEditor(), dock='vertical', width=0.55),
                        control_group,
                        show_labels=False,
                       ),
@@ -764,48 +794,34 @@ class MainWindow(HasTraits):
                 handler=MainWindowHandler(),
                 buttons=NoButtons)
 
-    # Below are the callback definitions
+
+
+
+    #####
+    # Below are the callback definitions for the MainWindow
+    #####
+
     def _selected_changed(self,selected):
+        """Whenever selection changes, the index of the selected tab is 
+        stored in self.index """
         self.index = self.subplots.index(selected)
 
     def _addplot_fired(self):
+        """A new subplot tab is added to the list."""
         new = copy.deepcopy( self.subplots[ self.index ] ) 
         new.name = 'SubPlot%s' % (1+len(self.subplots)) 
         self.subplots.append( new )
-    
-    def _savefigure_fired(self):
-	
-	filename = ""
-	rawfile =[]
-	ds = []
-        for j,subplot in enumerate(self.subplots):
-	  	for i,dataset in enumerate(subplot.datasets):
-			if(dataset.plotme): 
-				folder = dataset.datadir+"plots/" # Use the folder of the last dataset
-				ds.append(dataset)
-
-		for dataset in ds:
-			fn = dataset.descr + "_" if dataset.descr else ""
-			fn = fn+ dataset.X.replace(":","_")
-			fn = fn+ "_"+ dataset.Y.replace(":","_")
-			fn = fn+ "_"+ dataset.range.replace(":","_").replace(",","_").replace("-","m")
-			if not os.path.exists(folder):os.makedirs(folder)
-			dataset.saverawfile(os.path.join(folder,fn+".dat"))
-			if(filename!=""): filename = filename +"_AND_"
-			filename = filename + fn 
-
-	filename = os.path.join(folder,filename+".png")
-	self.figure.savefig(filename)
-
+        #The newly added plot is selected
+        self.selected = self.subplots[-1]    
 
     def _clear_fired(self):
-        """Callback of the "clear" button.  This stops the fitting thread if necessary
+        """Callback of the "clear" button.  This stops the plotting thread if necessary
         and then clears the plot
         """
         if self.process_thread and self.process_thread.isAlive():
             self.process_thread.wants_abort = True
         else: 
-            sleep(1)
+            time.sleep(1)
             for ax in self.figure.get_axes(): 
               ax.cla()
             if not self.autoplot:
@@ -830,27 +846,18 @@ class MainWindow(HasTraits):
 
             #---- The ProcessingThread is set up by giving it functions that
             #---- can alter the state of the Control Panel
+
             pyscript = ''
             if self.exportpy:
-              pyscript = save_file()
-              if pyscript == '':
+              pyscript =  savefile_dialog("Save .py script for current plot","py")
+              if pyscript == None:
                 self.exportpy = False
-           
-            #Write all the preamble stuff to the py export file 
-            exportpy( (self.exportpy,pyscript), [r"import sys"])
-            exportpy( (self.exportpy,pyscript), [r"import numpy"])
-            exportpy( (self.exportpy,pyscript), [r"import matplotlib.pyplot as plt"])
-            exportpy( (self.exportpy,pyscript), [r"import matplotlib"])
-            exportpy( (self.exportpy,pyscript), [r"sys.path.append('/lab/software/apparatus3/py')"])
-            exportpy( (self.exportpy,pyscript), [r"figure = plt.figure()"])
-
-            exportpy( (self.exportpy,pyscript), [r"import qrange, statdat"])
-
+            export = (self.exportpy, pyscript) 
  
             self._setfitexprs_()
             self.process_thread = ProcessThread()
             self.process_thread.autoplot = self.autoplot           # Pass autoplot
-            self.process_thread.export = (self.exportpy,pyscript)  # Pass exportpy bool and the output file as a tuple
+            self.process_thread.export = export                    # Pass export
             self.process_thread.figure = self.figure               # Pass the figure
             self.process_thread.subplots = self.subplots
             self.process_thread.gridR = self.gridR
@@ -858,21 +865,69 @@ class MainWindow(HasTraits):
             self.process_thread.start()                            # Start the fitting thread
 
 
+    #####
+    # Below are general functionality functions for the MainWindow
+    #####
+
+    def update_status(self, string):
+        """Adds a line to the top of the status box"""
+        now = time.strftime("[%Y/%m/%d  %H:%M:%S]  ", time.gmtime())
+        self.status_string = (now + string + "\n" + self.status_string)[0:1000]
+        print string
+
+    #The _pck_ function is used to load and save tabs to a pck file
+    def _pck_(self,action,f=mainpck):
+        if action == 'load':
+            with open(f,"rb") as fpck:
+                print 'Loading panel from %s' % f
+                try:
+                    for item in pickle.load(fpck):
+                        self.subplots.append(item)
+                except:
+		    print 'Loading Fail!!'
+                    return
+        if action == 'save':
+            print 'Saving panel to %s' % f
+            with open(f,"w+b") as fpck:
+                pickle.dump(self.subplots,fpck)
+
     def _savepck_changed ( self ):
         """ Handles the user clicking the 'save pck...' button. Save the pck file to desired directory
         """ 
-        file_name = save_file()
+        file_name = savefile_dialog("Save pck file","pck")
         if file_name != '':
             self._pck_('save',f=file_name)
-
+        self.update_status( "Saved pck to %s" % path )
 
 
     def _loadpck_changed ( self ):
         """ Handles the user clicking the 'Open...' button. Load the pck file from desired directory
         """
-        file_name = open_file()
-        if file_name != '':
+        file_name = openfile_dialog("Load pck file","pck")
+        if file_name != None:
             self._pck_('load',file_name)
+        self.update_status( "Loaded pck from %s" % path )
+
+    def _savetab_changed ( self ):
+        """ Handles the user clicking the savetab button
+        """
+        path =  savefile_dialog("Save subplot tab","spt")
+        if path != None:
+           with open(path,"w+b") as fpck:
+               pickle.dump(self.selected,fpck)
+           self.update_status( "Saved selected tab to %s" % path )
+  
+    def _loadtab_changed ( self ):
+        """ Handles the user clicking the loadtab button
+        """
+        path =  openfile_dialog("Load subplot tab","spt")
+        if path != None: 
+           with open(path,"rb") as fpck:
+               item = pickle.load(fpck)
+               self.subplots.append(item)
+           self.update_status( "Loaded tab from %s" % path )
+    
+
     
 
 if __name__ == '__main__':

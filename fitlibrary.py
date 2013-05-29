@@ -359,14 +359,15 @@ class Fits(HasTraits):
                        Item('dofit'),
                        Item('func'),
                         orientation='horizontal', layout='normal'), 
-                        Group(
+                        HGroup(
                        Item('x0'),
-                       Item('xf'), 
+                       Item('xf'),),
+                        HGroup( 
                        Item('y0'),
-                       Item('yf'), 
+                       Item('yf'), ),
+                       HGroup(
                        Item('px0'),
-                       Item('pxf'), 
-                       orientation='horizontal', layout='normal'),
+                       Item('pxf'), ),
                     Group(
                        Item('fitexpr',style='readonly')),
                     Group( Item('column_labels', style='readonly',show_label=False)),
@@ -392,8 +393,9 @@ class Fits(HasTraits):
         try: 
           self.fitexpr = fitdict[self.func].fitexpr
         except:
-          print "No fit called %s exists! Program will exit." % self.func
-          exit(1)
+          print "No fit called %s exists!" % self.func
+          self.fitexpr = ''
+          #exit(1)
                               
     def fit(self,data):
 	mask =  [ 1 if i else 0 for i in self.fit_mask]
