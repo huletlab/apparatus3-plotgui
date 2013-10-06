@@ -1,3 +1,0 @@
-01/23/13: V1.1: 
-	Add save current figure.
-
