@@ -8,12 +8,12 @@ from StringIO import StringIO
 
 import argparse
 import os
-
 #Comment
 
 def evalstr( report, string):
   try:
     tokens = string.split()
+    shot = report 
     report = ConfigObj(report)
   except:
     return numpy.nan
@@ -26,10 +26,15 @@ def evalstr( report, string):
         tokens[i] = report[sec][key]
       except:
         valid = False
-  if valid:
-    return eval( " ".join(tokens) )
-  else:
-    return numpy.nan 
+  try:
+      if valid:
+        return eval( " ".join(tokens).replace('nan', 'numpy.nan') )
+      else:
+        return numpy.nan 
+  except:
+      print report['SEQ']['shot'] 
+      print " ".join(tokens)  
+      raise
     
      
 
@@ -69,7 +74,7 @@ def parse_range(rangestr):
 
   return shots
 
-def qrange_eval( dir, range, keys):
+def qrange_eval( direc, range, keys):
   np = numpy
   fakefile=""
   shots=parse_range(range)
@@ -84,11 +89,16 @@ def qrange_eval( dir, range, keys):
     return numpy.array([]), errmsg, rawdat
      
   for shot in shots:
-    #report = dir + 'report' + shot + '.INI'
-    report = os.path.join(dir ,  'report' + shot + '.INI')
-    report = ConfigObj(report)
+    #report = direc + 'report' + shot + '.INI' 
+    report = os.path.join(direc ,  'report' + shot + '.INI')
+    try:
+        report = ConfigObj(report)
+    except:
+        print "Shot = ",shot
+        raise
+       
     if report == {}:
-      errmsg=errmsg + "...Report #%s does not exist in %s!\n" % (shot,dir)
+      errmsg=errmsg + "...Report #%s does not exist in %s!\n" % (shot,direc)
       continue
     fakefile = fakefile + '\n'
     rawdat = rawdat + '\n%s\t\t' % shot
@@ -120,17 +130,17 @@ def qrange_eval( dir, range, keys):
       print errmsg
   return a, errmsg, rawdat
 
-def qrange(dir,range,keys):
+def qrange(direc,range,keys):
   fakefile=""
   shots=parse_range(range)
   errmsg=''
   rawdat='#%s%s\n' % ('SEQ:shot\t',keys.replace(' ','\t'))
 
   for shot in shots:
-    report = os.path.join(dir ,  'report' + shot + '.INI')
+    report = os.path.join(direc ,  'report' + shot + '.INI')
     report = ConfigObj(report)
     if report == {}:
-      errmsg=errmsg + "...Report #%s does not exist in %s!\n" % (shot,dir)
+      errmsg=errmsg + "...Report #%s does not exist in %s!\n" % (shot,direc)
       continue
     fakefile = fakefile + '\n'
     rawdat = rawdat + '\n%s\t\t' % shot

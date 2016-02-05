@@ -1,12 +1,25 @@
 from scipy import optimize
 import numpy
-import matplotlib.pyplot as plt
-import inspect
+#mport matplotlib.pyplot as plt
+#import inspect
 import pprint
 
 class fits:
-   def __init__(self, function):
-     self.function = function
+    def __init__(self, function):
+        self.function = function
+        self.fitexpr = None
+
+def fill_expr(expr, para):
+    para = para.split('\n')[1:]
+    for i in range(6):
+        try:
+            p = para[i].split('\t')
+            expr = expr.replace("a[{0}]".format(i), "({0} +/- {1})".format(p[0],p[1]))
+        except:
+            pass
+    return expr
+
+
 
 #-------------------------------------------------------------------------------#
 #
@@ -15,12 +28,15 @@ class fits:
 #-------------------------------------------------------------------------------#
 # Currently accepts fits of maximum 5 parameters
 
+import pandas as pd
+
+
 fitdict = {}
 
 #---------------------- GAUSSIAN
 # p0 = amplitude
 # p1 = center
-# p2 = 1/e^2 radius
+# p2 = 1/e radius
 # p3 = offset
 gaus1d = fits( lambda x,p : p[0]*numpy.exp(-((x-p[1])/p[2])**2)+p[3] )
 #gaus1d = fits( lambda x,p0,p1,p2,p3 : p0*numpy.exp(-((x-p1)/p2)**2)+p3 )
@@ -30,7 +46,7 @@ fitdict['Gaussian'] = gaus1d
 #---------------------- GAUSSIAN WITHOUT OFFSET
 # p0 = amplitude
 # p1 = center
-# p2 = 1/e^2 width
+# p2 = 1/e width
 gaus1d_no_offset = fits( lambda x,p : p[0]*numpy.exp(-((x-p[1])/p[2])**2) )
 #gaus1d_no_offset = fits( lambda x,p0,p1,p2,p3 : p0*numpy.exp(-((x-p1)/p2)**2) )
 gaus1d_no_offset.fitexpr = 'a[0] * exp( - ( (x-a[1]) / a[2] )**2 )'
@@ -44,6 +60,19 @@ exp1d = fits( lambda x,p:  p[0]*numpy.exp(-(x)/p[1])+p[2])
 #exp1d = fits( lambda x,p0,p1,p2:  p0*numpy.exp(-(x)/p1)+p2)
 exp1d.fitexpr = 'a[0] * exp( - x / a[1]  )+a[2]'	
 fitdict['Exp'] = exp1d
+
+#---------------------- DOUBLE EXPONENTIAL
+# p0 = start value
+# p1 = decay constant 1 
+# p2 = offset
+# p3 = kink
+# p4 = decay constant 2 
+exp2tau = fits( lambda x,p: numpy.piecewise( x, \
+                 [x < p[3], x>= p[3] ], \
+                 [ lambda x: p[0]*numpy.exp( -x/p[1]) + p[2], 
+                   lambda x: (p[0]*numpy.exp( -p[3]/p[1]) + p[2])*numpy.exp( -(x-p[3])/p[4]) ] ))
+exp2tau.fitexpr = 'p[0]=ampl, p[2]=offs, p[1]=tau1, p[3]=kink, p[4]=tau2'	
+fitdict['DoubleExp'] = exp2tau
 
 #---------------------- SINE
 # p0 = amplitude
@@ -125,6 +154,30 @@ linear = fits( lambda x,p: p[0]*x+p[1] )
 linear.fitexpr = 'a[0]*x + a[1]'
 fitdict['Linear'] = linear
 
+#---------------------- Dual LINE
+# p0 = slope
+# p1 = slope2
+# p2 = kink
+# p3 = offset
+dlinearFunc =  lambda x,p: p[0]*x+p[3]  if x<p[2] else p[0]*p[2]+p[3]+p[1]*(x-p[2])
+def dlinearF (x,p):
+  y = []
+  for i,j in enumerate(x):
+    y.append(dlinearFunc(j,p))
+  return numpy.array(y)
+dlinear = fits(dlinearF)
+dlinear.function = numpy.vectorize(dlinear.function)
+linear = fits( lambda x,p0,p1: p0*x+p1 )
+dlinear.fitexpr = 'a[0]*x + a[3] if x<a[2] else a[0]*a[2]+a[1]*(x-a[2])+a[3]'
+fitdict['DLinear'] = dlinear
+
+
+#---------------------- SLOPE
+# p0 = slope
+slope = fits( lambda x,p: p[0]*x )
+slope.fitexpr = 'a[0]*x'
+fitdict['Slope'] = slope
+
 #---------------------- PARABOLA
 # p0 = curvature
 # p1 = center
@@ -160,6 +213,16 @@ beam2_1070 = fits( lambda x,p: p[0]*numpy.sqrt( 1 +  ( (x-p[1])/(numpy.pi*p[0]*p
 beam2_1070.fitexpr = 'a[0] * sqrt ( 1 + ( (x-a[1]) / ( pi * a[0]^2 / lambda / a[2]) )**2 )'
 fitdict['Beam1070m2'] = beam2_1070
 
+#---------------------- GAUSSIAN BEAM 1064 nm with M^2 (x in m, w in m)
+# p0 = w0
+# p1 = x0
+# p2 = m2
+l1064 = 1064.e-9
+beam2_1064 = fits( lambda x,p: p[0]*numpy.sqrt( 1 +  ( (x-p[1])/(numpy.pi*p[0]*p[0]/l1064) )**2. ) )
+#beam1070 = fits( lambda x,p0,p1: p0*numpy.sqrt( 1 +  ( (x-p1)/(numpy.pi*p0*p0/l1070) )**2. ) )
+beam2_1064.fitexpr = 'a[0] * sqrt ( 1 + ( (x-a[1]) / ( pi * a[0]^2 / lambda) )**2 )'
+fitdict['Beam1064'] = beam2_1064
+
 #---------------------- GAUSSIAN BEAM 1070 nm (x in MIL, w in uMETER)
 # p0 = w0
 # p1 = x0
@@ -187,6 +250,18 @@ debyewaller = fits( lambda x,p: p[0] * numpy.exp( - 1./2. * p[1]**2 / numpy.sqrt
 #debyewaller = fits( lambda x,p0,p1: p0 * numpy.exp( - 1./2. * p1**2 / numpy.sqrt(x) )) 
 debyewaller.fitexpr = 'a[0] * exp( -1/2 * a[1]^2 / sqrt(x) )'
 fitdict['DebyeWaller'] = debyewaller
+
+#---------------------- STEP WITH SLOPE
+#  x = anything
+# p0 = left kink
+# p1 = right kink
+# p2 = left value
+# p3 = right value
+stepwithslope = fits( lambda x,p: numpy.piecewise( x, \
+                 [x < p[0], numpy.logical_and( x>=p[0], x<p[1] ), x>=p[1]], \
+                 [p[2], lambda x: p[2] + (x-p[0])*(p[3]-p[2])/(p[1]-p[0]), p[3] ]  ))  
+stepwithslope.fitexpr = ' p[2] if x < p[0] ; p[3] if x > p[1] '
+fitdict['StepWithSlope'] = stepwithslope
 
 
 #-------------------------------------------------------------------------------#
@@ -219,13 +294,13 @@ def fit_mask_function(p,data,mask,function):
 	p = numpy.array(p)
 	mask_fun, mask_matrix = mask_function(p,mask,function)
 	pfit,fiterror = fit_function((numpy.array(p)*mask_matrix.transpose()).tolist()[0],data,mask_fun)
-	print numpy.array(p)*mask_matrix.transpose(),numpy.array(pfit).reshape(1,len(pfit)),mask_matrix,mask,p
+	#print numpy.array(p)*mask_matrix.transpose(),numpy.array(pfit).reshape(1,len(pfit)),mask_matrix,mask,p
 	pfit_unmask = numpy.array(pfit.reshape(1,len(pfit))*mask_matrix + (1-mask)*p)
 	fiterror_unmask = numpy.array(fiterror.reshape(1,len(pfit))*mask_matrix)
-
+        
 	return pfit_unmask.reshape(5,1), fiterror_unmask.reshape(5,1)
 
-def fit_function(p,data,function):
+def fit_function(p,data,function,**kwargs):
     # Chekck the length of p
     #pLen = len(inspect.getargspec(function)[0])-1
     #p0 = p[0:pLen]
@@ -245,14 +320,21 @@ def fit_function(p,data,function):
     residuals = errfunc( pfit, datax, datay)
     s_res = numpy.std(residuals)
     ps = []
+    dataerrors = kwargs.get('dataerrors', None)
     for i in range(100):
-      randomdataY = datay+numpy.random.normal(0., s_res, len(datay))
+      if dataerrors is None:
+          randomdataY = datay+numpy.random.normal(0., s_res, len(datay))
+      else:
+          random =  numpy.array( [ numpy.random.normal(0., derr,1)[0] \
+                         for derr in dataerrors ] ) 
+          randomdataY = datay + random
       randomfit, randomcov = optimize.leastsq( errfunc, p0, args=(datax, randomdataY), full_output=0)
       ps.append( randomfit ) 
     ps = numpy.array(ps)
     mean_pfit = numpy.mean(ps,0)
-    err_pfit = 2 * numpy.std(ps,0) # 2sigma confidence interval is used = 95.44 %
+    err_pfit = kwargs.get('nsigmas',2) * numpy.std(ps,0) # 2sigma confidence interval is used = 95.44 %
                                # 1sigma is only 68.3 %
+
     
     # Below is the old estimation of the fit parameter errors
     # This uses the covariance, the code was copied from the
@@ -283,11 +365,11 @@ def fit_function(p,data,function):
     
     return pfit,error
 
-def plot_function(p,datax,function, xlim = None):
+def plot_function(p,datax,function, xlim = None, xpts=500):
     p0 = p
     
     if xlim == None: 
-      x = numpy.linspace(numpy.min(datax), numpy.max(datax), 200)
+      x = numpy.linspace(numpy.min(datax), numpy.max(datax), xpts)
     else: 
       x = numpy.linspace(xlim[0], xlim[1], 200)
     y = function(x,p0)
@@ -324,113 +406,17 @@ def test_function(p,function):
 	plt.plot(fitX,fitY,'-')
 	plt.show()
 
-from traits.api import *
-from traitsui.api import View, Item, Group, HGroup, VGroup, HSplit, VSplit,Handler, CheckListEditor, EnumEditor, ListStrEditor,ArrayEditor, spring, BooleanEditor,ListEditor
 
-import pickle
 
-class Fits(HasTraits):
-    """ Object used to do fits to the data
-    """
-    doplot = Bool(False, desc="plot?: Check box to plot with the current params", label="plot?")
-    dofit = Bool(False, desc="do fit?: Check box to enable this fit", label="fit?")
-    fitexpr = Str(label='f(x)=')
-    func = Enum(fitdict.keys())
-    x0 = Float(-1e15, label="x0", desc="x0 for fit range")
-    xf = Float(1e15, label="xf", desc="xf for fit range")
-    
-    y0 = Float(-1e15, label="y0", desc="y0 for fit range")
-    yf = Float(1e15, label="yf", desc="yf for fit range")
+name= []
+exper = []
+for key, val in fitdict.iteritems():
+    name.append(key)
+    exper.append(val.fitexpr)
 
-    px0 = Float(numpy.nan, label="px0", desc="x0 for plot range")
-    pxf = Float(numpy.nan, label="pxf", desc="xf for plot range")
- 
-    fit_mask = List(Bool(True,editor=BooleanEditor(mapping={"yes":True, "no":False})),[True,True,True,True,True])   
+help_table = pd.Series(exper, index=name)
 
-    a0 = Array(numpy.float,(5,1),editor=ArrayEditor(width=-82))
-    a = Array(numpy.float,(5,1),editor=ArrayEditor(width=-82))
-    ae = Array(numpy.float,(5,1),editor=ArrayEditor(width=-82))
 
-    column_labels = Str('A0   |   Afit   |   Aerr   |   Fit Mask')
-	
-    traits_view = View(
-                    Group(Group(
-                       Item('doplot'),
-                       Item('dofit'),
-                       Item('func'),
-                        orientation='horizontal', layout='normal'), 
-                        HGroup(
-                       Item('x0'),
-                       Item('xf'),),
-                        HGroup( 
-                       Item('y0'),
-                       Item('yf'), ),
-                       HGroup(
-                       Item('px0'),
-                       Item('pxf'), ),
-                    Group(
-                       Item('fitexpr',style='readonly')),
-                    Group( Item('column_labels', style='readonly',show_label=False)),
-                    Group(
-                       Item('a0',show_label=False),
-                       Item('a',show_label=False),
-		       Item('ae',show_label=False),
-		       Item('fit_mask', style='custom',editor = ListEditor(),show_label=False),
-                       orientation='horizontal'),),
-                       dock='vertical',
-               )
-               
-    def limits(self, data):
-        lim=[]
-        for p in data:
-            
-            if p[0] < self.xf and p[0] > self.x0 and p[1] > self.y0 and p[1] < self.yf:
-                lim.append([p[0],p[1]])
-        return numpy.asarray(lim), len(lim)
-        
-            
-    def _setfitexprs_(self):
-        try: 
-          self.fitexpr = fitdict[self.func].fitexpr
-        except:
-          print "No fit called %s exists!" % self.func
-          self.fitexpr = ''
-          #exit(1)
-                              
-    def fit(self,data):
-	mask =  [ 1 if i else 0 for i in self.fit_mask]
-        fitdata, n = self.limits(data)
-      
-        if n == 0:
-            print "No points in the specified range [x0:xf], [y0:yf]"
-            return None,None
-        f = fitdict[self.func]
-        if not self.dofit:
-          print "Evaluating %s" % self.func
-          if not numpy.isnan(self.px0) and not numpy.isnan(self.pxf):
-            return plot_function(self.a0[:,0] , fitdata[:,0], f.function, xlim=(self.px0,self.pxf) )
-          else:
-            return plot_function(self.a0[:,0] , fitdata[:,0], f.function)
-        else:
-          print "Fitting %s" % self.func
-          self.a, self.ae=fit_mask_function(self.a0[:,0],fitdata,mask,f.function)
-          if not numpy.isnan(self.px0) and not numpy.isnan(self.pxf):
-            return plot_function(self.a[:,0] , fitdata[:,0], f.function, xlim=(self.px0,self.pxf) )
-          else:
-            return plot_function(self.a[:,0] , fitdata[:,0], f.function)
-           
-if __name__ == "__main__":
-        print ""
-	print "------ Functions in Fit Library ------"
-        for key in fitdict.keys():
-          print key
-      
-       
-	print ""
-	print "------ Testing fitlibrary.py ------"
-	print ""
-
-	test_function([1000,700],fitdict['Temperature'].function)
 
 
 
