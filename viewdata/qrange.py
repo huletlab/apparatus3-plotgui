@@ -1,4 +1,8 @@
 #!/usr/bin/python
+try:
+  import iopro
+except:
+  pass
 
 import sys
 from configobj import ConfigObj
@@ -10,11 +14,10 @@ import argparse
 import os
 #Comment
 
+
 def evalstr( report, string):
   try:
     tokens = string.split()
-    shot = report 
-    report = ConfigObj(report)
   except:
     return numpy.nan
   valid = True
@@ -75,7 +78,7 @@ def parse_range(rangestr):
   return shots
 
 def qrange_eval( direc, range, keys):
-  np = numpy
+
   fakefile=""
   shots=parse_range(range)
   errmsg=''
